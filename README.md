@@ -11,6 +11,13 @@ A clean MVP for a low-cost SaaS that helps appointment-based businesses reduce m
 - Customer recovery profile table
 - Settings page with environment variable placeholders for Supabase, Twilio, OpenAI, Stripe, and calendar integrations
 
+## Backend foundation
+
+- Supabase SQL schema and migration files live in `supabase/schema.sql` and `supabase/migrations/`.
+- TypeScript database interfaces live in `lib/types/database.ts`.
+- API route structure and example CRUD requests are documented in `docs/backend-api.md`.
+- Twilio integration is prepared with environment placeholders and a no-op SMS queue adapter in `lib/sms/twilio.ts`; no real API keys are committed.
+
 ## Local setup
 
 ```bash
