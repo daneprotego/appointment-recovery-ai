@@ -7,11 +7,13 @@ export interface AppEnvironment {
   twilioAuthToken: string;
   twilioMessagingServiceSid: string;
   twilioPhoneNumber: string;
+  twilioSmsEnabled: string;
+  twilioValidateWebhookSignatures: string;
 }
 
 export function getAppEnvironment(): AppEnvironment {
   return {
-    appUrl: process.env.NEXT_PUBLIC_APP_URL ?? 'http://localhost:3000',
+    appUrl: process.env.PUBLIC_APP_URL ?? process.env.NEXT_PUBLIC_APP_URL ?? 'http://localhost:3000',
     supabaseUrl: process.env.NEXT_PUBLIC_SUPABASE_URL ?? '',
     supabaseAnonKey: process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ?? '',
     supabaseServiceRoleKey: process.env.SUPABASE_SERVICE_ROLE_KEY ?? '',
@@ -19,5 +21,7 @@ export function getAppEnvironment(): AppEnvironment {
     twilioAuthToken: process.env.TWILIO_AUTH_TOKEN ?? '',
     twilioMessagingServiceSid: process.env.TWILIO_MESSAGING_SERVICE_SID ?? '',
     twilioPhoneNumber: process.env.TWILIO_PHONE_NUMBER ?? '',
+    twilioSmsEnabled: process.env.TWILIO_SMS_ENABLED ?? 'false',
+    twilioValidateWebhookSignatures: process.env.TWILIO_VALIDATE_WEBHOOK_SIGNATURES ?? 'false',
   };
 }
