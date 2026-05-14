@@ -9,10 +9,14 @@ create type public.customer_status as enum ('active', 'inactive', 'blocked');
 create type public.appointment_status as enum ('scheduled', 'confirmed', 'cancelled', 'no_show', 'completed', 'rescheduled');
 create type public.appointment_risk_level as enum ('low', 'medium', 'high', 'recovered');
 create type public.reminder_channel as enum ('sms', 'email', 'voice');
-create type public.reminder_status as enum ('queued', 'sent', 'delivered', 'failed', 'cancelled');
+create type public.reminder_status as enum ('queued', 'processing', 'sent', 'delivered', 'failed', 'cancelled');
 create type public.waitlist_status as enum ('open', 'matched', 'notified', 'booked', 'expired', 'cancelled');
 create type public.subscription_plan as enum ('free', 'starter', 'growth', 'pro');
 create type public.subscription_status as enum ('trialing', 'active', 'past_due', 'cancelled', 'unpaid');
+create type public.communication_direction as enum ('inbound', 'outbound', 'internal');
+create type public.communication_event_type as enum ('reminder_scheduled', 'reminder_sent', 'reminder_delivered', 'reply_received', 'reply_classified', 'status_change', 'waitlist_offer', 'recovery_note');
+create type public.recovery_opportunity_status as enum ('open', 'contacted', 'recovered', 'lost', 'expired');
+create type public.recovery_opportunity_priority as enum ('low', 'medium', 'high', 'urgent');
 
 create table public.businesses (
   id uuid primary key default gen_random_uuid(),
@@ -101,6 +105,11 @@ create table public.reminders (
   message_template text,
   message_body text,
   error_message text,
+  attempt_count integer not null default 0 check (attempt_count >= 0),
+  max_attempts integer not null default 3 check (max_attempts > 0),
+  next_attempt_at timestamptz,
+  last_attempt_at timestamptz,
+  locked_at timestamptz,
   metadata jsonb not null default '{}'::jsonb,
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now()
@@ -141,6 +150,41 @@ create table public.subscriptions (
   unique (business_id)
 );
 
+create table public.communication_events (
+  id uuid primary key default gen_random_uuid(),
+  business_id uuid not null references public.businesses(id) on delete cascade,
+  customer_id uuid not null references public.customers(id) on delete cascade,
+  appointment_id uuid references public.appointments(id) on delete set null,
+  reminder_id uuid references public.reminders(id) on delete set null,
+  channel text not null,
+  direction public.communication_direction not null,
+  event_type public.communication_event_type not null,
+  body text,
+  provider_message_id text,
+  occurred_at timestamptz not null default now(),
+  metadata jsonb not null default '{}'::jsonb,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+
+create table public.recovery_opportunities (
+  id uuid primary key default gen_random_uuid(),
+  business_id uuid not null references public.businesses(id) on delete cascade,
+  appointment_id uuid not null references public.appointments(id) on delete cascade,
+  customer_id uuid not null references public.customers(id) on delete cascade,
+  status public.recovery_opportunity_status not null default 'open',
+  priority public.recovery_opportunity_priority not null default 'medium',
+  score integer not null default 0 check (score >= 0 and score <= 100),
+  estimated_value_cents integer not null default 0 check (estimated_value_cents >= 0),
+  recovered_value_cents integer not null default 0 check (recovered_value_cents >= 0),
+  reason text,
+  resolved_at timestamptz,
+  metadata jsonb not null default '{}'::jsonb,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now(),
+  unique (appointment_id, status)
+);
+
 create index businesses_slug_idx on public.businesses(slug);
 create index users_business_id_idx on public.users(business_id);
 create index customers_business_id_idx on public.customers(business_id);
@@ -149,8 +193,13 @@ create index appointments_business_id_starts_at_idx on public.appointments(busin
 create index appointments_customer_id_idx on public.appointments(customer_id);
 create index reminders_business_id_scheduled_for_idx on public.reminders(business_id, scheduled_for);
 create index reminders_appointment_id_idx on public.reminders(appointment_id);
+create index reminders_due_retry_idx on public.reminders(status, scheduled_for, next_attempt_at);
 create index waitlists_business_id_status_idx on public.waitlists(business_id, status);
 create index subscriptions_business_id_idx on public.subscriptions(business_id);
+create index communication_events_business_customer_idx on public.communication_events(business_id, customer_id, occurred_at desc);
+create index communication_events_appointment_idx on public.communication_events(appointment_id, occurred_at desc);
+create index recovery_opportunities_business_status_idx on public.recovery_opportunities(business_id, status, priority);
+create index recovery_opportunities_appointment_idx on public.recovery_opportunities(appointment_id);
 
 create or replace function public.set_updated_at()
 returns trigger
@@ -169,6 +218,8 @@ create trigger set_appointments_updated_at before update on public.appointments 
 create trigger set_reminders_updated_at before update on public.reminders for each row execute function public.set_updated_at();
 create trigger set_waitlists_updated_at before update on public.waitlists for each row execute function public.set_updated_at();
 create trigger set_subscriptions_updated_at before update on public.subscriptions for each row execute function public.set_updated_at();
+create trigger set_communication_events_updated_at before update on public.communication_events for each row execute function public.set_updated_at();
+create trigger set_recovery_opportunities_updated_at before update on public.recovery_opportunities for each row execute function public.set_updated_at();
 
 alter table public.businesses enable row level security;
 alter table public.users enable row level security;
@@ -177,6 +228,8 @@ alter table public.appointments enable row level security;
 alter table public.reminders enable row level security;
 alter table public.waitlists enable row level security;
 alter table public.subscriptions enable row level security;
+alter table public.communication_events enable row level security;
+alter table public.recovery_opportunities enable row level security;
 
 create or replace function public.current_user_business_id()
 returns uuid
@@ -214,3 +267,9 @@ create policy "members read own waitlists" on public.waitlists for select using 
 
 create policy "service role manages subscriptions" on public.subscriptions for all using (auth.role() = 'service_role') with check (auth.role() = 'service_role');
 create policy "members read own subscriptions" on public.subscriptions for select using (business_id = public.current_user_business_id());
+
+create policy "service role manages communication events" on public.communication_events for all using (auth.role() = 'service_role') with check (auth.role() = 'service_role');
+create policy "members read own communication events" on public.communication_events for select using (business_id = public.current_user_business_id());
+
+create policy "service role manages recovery opportunities" on public.recovery_opportunities for all using (auth.role() = 'service_role') with check (auth.role() = 'service_role');
+create policy "members read own recovery opportunities" on public.recovery_opportunities for select using (business_id = public.current_user_business_id());

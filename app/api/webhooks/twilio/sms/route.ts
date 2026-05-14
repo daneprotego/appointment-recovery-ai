@@ -1,10 +1,13 @@
 import { createHmac, timingSafeEqual } from 'crypto';
 import { NextResponse, type NextRequest } from 'next/server';
 
+import { classifyMessagePlaceholder } from '@/lib/ai/message-classification';
 import { getSupabaseAdminClient } from '@/lib/supabase/admin';
 import { getReplyStatusUpdate, getTwilioWebhookResponseMessage, parseSmsReply } from '@/lib/sms/replies';
 import { getAppEnvironment } from '@/lib/types/env';
 import type { Appointment, Customer, Json, Reminder } from '@/lib/types/database';
+import { transitionAppointmentStatus } from '@/lib/workflows/appointment-lifecycle';
+import { recordCommunicationEvent } from '@/lib/workflows/communications';
 
 export const runtime = 'nodejs';
 
@@ -178,6 +181,7 @@ async function findLatestReminderMatch(fromPhone: string): Promise<ReminderMatch
     .from('appointments')
     .select('*')
     .eq('id', matchedReminder.appointment_id)
+    .eq('business_id', customer.business_id)
     .maybeSingle();
 
   if (appointmentError) {
@@ -197,6 +201,33 @@ async function applyInboundReply(payload: TwilioInboundSmsPayload): Promise<stri
     return getTwilioWebhookResponseMessage(parsedReply.intent);
   }
 
+  const classification = classifyMessagePlaceholder(payload.body);
+
+  await recordCommunicationEvent({
+    businessId: match.customer.business_id,
+    customerId: match.customer.id,
+    appointmentId: match.appointment?.id ?? null,
+    reminderId: match.reminder?.id ?? null,
+    channel: 'sms',
+    direction: 'inbound',
+    eventType: 'reply_received',
+    body: payload.body,
+    providerMessageId: payload.messageSid,
+    metadata: { from: payload.from, to: payload.to, parsed_intent: parsedReply.intent },
+  });
+
+  await recordCommunicationEvent({
+    businessId: match.customer.business_id,
+    customerId: match.customer.id,
+    appointmentId: match.appointment?.id ?? null,
+    reminderId: match.reminder?.id ?? null,
+    channel: 'system',
+    direction: 'internal',
+    eventType: 'reply_classified',
+    body: classification.summary,
+    metadata: { ...classification, source: 'placeholder_keyword_classifier' },
+  });
+
   const customerUpdate: Partial<Pick<Customer, 'sms_opt_in' | 'status'>> = {};
 
   if (statusUpdate.customerSmsOptIn !== undefined) {
@@ -208,7 +239,7 @@ async function applyInboundReply(payload: TwilioInboundSmsPayload): Promise<stri
   }
 
   if (Object.keys(customerUpdate).length > 0) {
-    await supabase.from('customers').update(customerUpdate).eq('id', match.customer.id);
+    await supabase.from('customers').update(customerUpdate).eq('id', match.customer.id).eq('business_id', match.customer.business_id);
   }
 
   if (match.reminder) {
@@ -234,27 +265,28 @@ async function applyInboundReply(payload: TwilioInboundSmsPayload): Promise<stri
           },
         },
       })
-      .eq('id', match.reminder.id);
+      .eq('id', match.reminder.id)
+      .eq('business_id', match.customer.business_id);
 
     if (statusUpdate.reminderStatus === 'cancelled') {
       await supabase
         .from('reminders')
         .update({ status: 'cancelled' })
         .eq('appointment_id', match.reminder.appointment_id)
+        .eq('business_id', match.customer.business_id)
         .eq('channel', 'sms')
         .eq('status', 'queued');
     }
   }
 
   if (match.appointment && statusUpdate.appointmentStatus) {
-    await supabase
-      .from('appointments')
-      .update({
-        status: statusUpdate.appointmentStatus,
-        recovery_notes: appendRecoveryNote(match.appointment.recovery_notes, statusUpdate.recoveryNotes),
-        cancellation_reason: statusUpdate.appointmentStatus === 'cancelled' ? 'Cancelled by SMS reply' : match.appointment.cancellation_reason,
-      })
-      .eq('id', match.appointment.id);
+    await transitionAppointmentStatus({
+      appointmentId: match.appointment.id,
+      businessId: match.appointment.business_id,
+      toStatus: statusUpdate.appointmentStatus,
+      reason: statusUpdate.appointmentStatus === 'cancelled' ? 'Cancelled by SMS reply' : undefined,
+      recoveryNotes: appendRecoveryNote(match.appointment.recovery_notes, statusUpdate.recoveryNotes),
+    });
   }
 
   return getTwilioWebhookResponseMessage(parsedReply.intent);
