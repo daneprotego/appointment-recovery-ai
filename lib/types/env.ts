@@ -9,6 +9,10 @@ export interface AppEnvironment {
   twilioPhoneNumber: string;
   twilioSmsEnabled: string;
   twilioValidateWebhookSignatures: string;
+  openaiApiKey: string;
+  stripeSecretKey: string;
+  stripeWebhookSecret: string;
+  reminderJobSecret: string;
 }
 
 export function getAppEnvironment(): AppEnvironment {
@@ -23,5 +27,9 @@ export function getAppEnvironment(): AppEnvironment {
     twilioPhoneNumber: process.env.TWILIO_PHONE_NUMBER ?? '',
     twilioSmsEnabled: process.env.TWILIO_SMS_ENABLED ?? 'false',
     twilioValidateWebhookSignatures: process.env.TWILIO_VALIDATE_WEBHOOK_SIGNATURES ?? 'false',
+    openaiApiKey: process.env.OPENAI_API_KEY ?? '',
+    stripeSecretKey: process.env.STRIPE_SECRET_KEY ?? '',
+    stripeWebhookSecret: process.env.STRIPE_WEBHOOK_SECRET ?? '',
+    reminderJobSecret: process.env.REMINDER_JOB_SECRET ?? '',
   };
 }

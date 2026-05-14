@@ -17,7 +17,7 @@ export async function sendSmsReminderPlaceholder(context: SmsReminderDeliveryCon
   if (!context.customer.sms_opt_in || !context.customer.phone) {
     await supabase
       .from('reminders')
-      .update({ status: 'cancelled', error_message: 'Customer is not opted in to SMS or does not have a phone number.' })
+      .update({ status: 'cancelled', error_message: 'Customer is not opted in to SMS or does not have a phone number.', locked_at: null })
       .eq('id', context.reminder.id);
 
     return {
@@ -44,6 +44,7 @@ export async function sendSmsReminderPlaceholder(context: SmsReminderDeliveryCon
     .update({
       status: reminderStatus,
       sent_at: result.queued ? new Date().toISOString() : null,
+      locked_at: null,
       provider_message_id: result.providerMessageId,
       error_message: result.errorMessage ?? null,
     })

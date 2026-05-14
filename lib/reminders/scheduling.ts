@@ -49,6 +49,11 @@ export function buildSmsReminderInput(
     message_template: template.template,
     message_body: template.body,
     error_message: context.customer.sms_opt_in && context.customer.phone ? null : 'Customer is not opted in to SMS or does not have a phone number.',
+    attempt_count: 0,
+    max_attempts: 3,
+    next_attempt_at: null,
+    last_attempt_at: null,
+    locked_at: null,
     metadata: {
       lead_time_minutes: options.leadTimeMinutes ?? DEFAULT_SMS_REMINDER_LEAD_TIME_MINUTES,
       scheduling_source: 'sms_reminder_foundation',
