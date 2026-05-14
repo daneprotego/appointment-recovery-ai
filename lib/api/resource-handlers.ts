@@ -1,12 +1,15 @@
 import { NextResponse, type NextRequest } from 'next/server';
 
-import { requireApiAuth } from '@/lib/auth/placeholder-auth';
+import { requireApiAuth } from '@/lib/auth/api';
 import { getSupabaseAdminClient } from '@/lib/supabase/admin';
-import type { TableName } from '@/lib/types/database';
+import type { TableName, UserRole } from '@/lib/types/database';
 
 interface ResourceOptions {
   tableName: TableName;
-  businessScoped?: boolean;
+  businessScopeColumn?: 'business_id' | 'id' | null;
+  createRoles?: readonly UserRole[];
+  updateRoles?: readonly UserRole[];
+  deleteRoles?: readonly UserRole[];
 }
 
 interface RouteContext {
@@ -17,7 +20,11 @@ function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value);
 }
 
-function withBusinessScope(payload: unknown, businessId: string): Record<string, unknown> {
+function withBusinessScope(payload: unknown, businessId: string, businessScopeColumn: 'business_id' | 'id' | null): Record<string, unknown> {
+  if (businessScopeColumn !== 'business_id') {
+    return isRecord(payload) ? payload : {};
+  }
+
   if (!isRecord(payload)) {
     return { business_id: businessId };
   }
@@ -28,9 +35,9 @@ function withBusinessScope(payload: unknown, businessId: string): Record<string,
   };
 }
 
-export function createListHandler({ tableName, businessScoped = true }: ResourceOptions) {
+export function createListHandler({ tableName, businessScopeColumn = 'business_id' }: ResourceOptions) {
   return async function GET(request: NextRequest) {
-    const auth = requireApiAuth(request);
+    const auth = await requireApiAuth(request);
 
     if (!auth.ok) {
       return auth.response;
@@ -39,8 +46,8 @@ export function createListHandler({ tableName, businessScoped = true }: Resource
     const supabase = getSupabaseAdminClient();
     let query = supabase.from(tableName).select('*').order('created_at', { ascending: false });
 
-    if (businessScoped) {
-      query = query.eq('business_id', auth.context.businessId);
+    if (businessScopeColumn) {
+      query = query.eq(businessScopeColumn, auth.context.businessId);
     }
 
     const { data, error } = await query;
@@ -53,16 +60,16 @@ export function createListHandler({ tableName, businessScoped = true }: Resource
   };
 }
 
-export function createCreateHandler({ tableName, businessScoped = true }: ResourceOptions) {
+export function createCreateHandler({ tableName, businessScopeColumn = 'business_id', createRoles }: ResourceOptions) {
   return async function POST(request: NextRequest) {
-    const auth = requireApiAuth(request);
+    const auth = await requireApiAuth(request, createRoles);
 
     if (!auth.ok) {
       return auth.response;
     }
 
     const payload = await request.json();
-    const insertPayload = businessScoped ? withBusinessScope(payload, auth.context.businessId) : payload;
+    const insertPayload = withBusinessScope(payload, auth.context.businessId, businessScopeColumn);
     const supabase = getSupabaseAdminClient();
     const { data, error } = await supabase.from(tableName).insert(insertPayload).select('*').single();
 
@@ -74,9 +81,9 @@ export function createCreateHandler({ tableName, businessScoped = true }: Resour
   };
 }
 
-export function createGetByIdHandler({ tableName, businessScoped = true }: ResourceOptions) {
+export function createGetByIdHandler({ tableName, businessScopeColumn = 'business_id' }: ResourceOptions) {
   return async function GET(request: NextRequest, context: RouteContext) {
-    const auth = requireApiAuth(request);
+    const auth = await requireApiAuth(request);
 
     if (!auth.ok) {
       return auth.response;
@@ -86,8 +93,8 @@ export function createGetByIdHandler({ tableName, businessScoped = true }: Resou
     const supabase = getSupabaseAdminClient();
     let query = supabase.from(tableName).select('*').eq('id', id);
 
-    if (businessScoped) {
-      query = query.eq('business_id', auth.context.businessId);
+    if (businessScopeColumn) {
+      query = query.eq(businessScopeColumn, auth.context.businessId);
     }
 
     const { data, error } = await query.single();
@@ -100,9 +107,9 @@ export function createGetByIdHandler({ tableName, businessScoped = true }: Resou
   };
 }
 
-export function createUpdateByIdHandler({ tableName, businessScoped = true }: ResourceOptions) {
+export function createUpdateByIdHandler({ tableName, businessScopeColumn = 'business_id', updateRoles }: ResourceOptions) {
   return async function PATCH(request: NextRequest, context: RouteContext) {
-    const auth = requireApiAuth(request);
+    const auth = await requireApiAuth(request, updateRoles);
 
     if (!auth.ok) {
       return auth.response;
@@ -113,8 +120,8 @@ export function createUpdateByIdHandler({ tableName, businessScoped = true }: Re
     const supabase = getSupabaseAdminClient();
     let query = supabase.from(tableName).update(payload).eq('id', id);
 
-    if (businessScoped) {
-      query = query.eq('business_id', auth.context.businessId);
+    if (businessScopeColumn) {
+      query = query.eq(businessScopeColumn, auth.context.businessId);
     }
 
     const { data, error } = await query.select('*').single();
@@ -127,9 +134,9 @@ export function createUpdateByIdHandler({ tableName, businessScoped = true }: Re
   };
 }
 
-export function createDeleteByIdHandler({ tableName, businessScoped = true }: ResourceOptions) {
+export function createDeleteByIdHandler({ tableName, businessScopeColumn = 'business_id', deleteRoles }: ResourceOptions) {
   return async function DELETE(request: NextRequest, context: RouteContext) {
-    const auth = requireApiAuth(request);
+    const auth = await requireApiAuth(request, deleteRoles);
 
     if (!auth.ok) {
       return auth.response;
@@ -139,8 +146,8 @@ export function createDeleteByIdHandler({ tableName, businessScoped = true }: Re
     const supabase = getSupabaseAdminClient();
     let query = supabase.from(tableName).delete().eq('id', id);
 
-    if (businessScoped) {
-      query = query.eq('business_id', auth.context.businessId);
+    if (businessScopeColumn) {
+      query = query.eq(businessScopeColumn, auth.context.businessId);
     }
 
     const { error } = await query;

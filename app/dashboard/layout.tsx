@@ -1,5 +1,10 @@
 import Link from "next/link";
 
+import { LogoutButton } from "@/components/auth/logout-button";
+import { requireOnboardedSession } from "@/lib/auth/session";
+
+export const dynamic = 'force-dynamic';
+
 const navigation = [
   { href: "/dashboard", label: "Overview" },
   { href: "/dashboard/appointments", label: "Appointments" },
@@ -7,7 +12,9 @@ const navigation = [
   { href: "/dashboard/settings", label: "Settings" },
 ];
 
-export default function DashboardLayout({ children }: Readonly<{ children: React.ReactNode }>) {
+export default async function DashboardLayout({ children }: Readonly<{ children: React.ReactNode }>) {
+  const session = await requireOnboardedSession();
+
   return (
     <div className="min-h-screen bg-slate-100 text-slate-950">
       <aside className="fixed inset-y-0 left-0 hidden w-72 border-r border-slate-200 bg-white p-6 lg:block">
@@ -23,20 +30,21 @@ export default function DashboardLayout({ children }: Readonly<{ children: React
           ))}
         </nav>
         <div className="absolute bottom-6 left-6 right-6 rounded-3xl bg-slate-950 p-5 text-white">
-          <p className="text-sm text-slate-300">Demo workspace</p>
-          <p className="mt-2 font-semibold">No real integrations connected.</p>
+          <p className="text-sm text-slate-300">{session.business.name}</p>
+          <p className="mt-2 font-semibold">{session.role} · {session.email}</p>
         </div>
       </aside>
       <div className="lg:pl-72">
         <header className="sticky top-0 z-10 border-b border-slate-200 bg-white/90 px-6 py-4 backdrop-blur lg:px-8">
           <div className="flex items-center justify-between">
             <div>
-              <p className="text-sm text-slate-500">MVP dashboard</p>
+              <p className="text-sm text-slate-500">{session.business.name}</p>
               <h1 className="text-xl font-semibold">Recovery workspace</h1>
             </div>
             <div className="flex items-center gap-3">
               <Link href="/pricing" className="hidden rounded-full border border-slate-300 px-4 py-2 text-sm font-semibold sm:block">Pricing</Link>
               <button className="rounded-full bg-blue-600 px-4 py-2 text-sm font-semibold text-white">Invite team</button>
+              <LogoutButton />
             </div>
           </div>
           <nav className="mt-4 flex gap-2 overflow-x-auto lg:hidden">

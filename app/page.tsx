@@ -24,10 +24,12 @@ export default function Home() {
         <nav className="hidden items-center gap-6 text-sm font-medium text-slate-600 md:flex">
           <Link href="#features" className="hover:text-slate-950">Features</Link>
           <Link href="/pricing" className="hover:text-slate-950">Pricing</Link>
+          <Link href="/login" className="hover:text-slate-950">Login</Link>
+          <Link href="/signup" className="hover:text-slate-950">Sign up</Link>
           <Link href="/dashboard" className="hover:text-slate-950">Dashboard</Link>
         </nav>
         <Link href="/dashboard" className="rounded-full bg-slate-950 px-5 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:bg-slate-800">
-          Open demo
+          Open dashboard
         </Link>
       </header>
 
@@ -46,6 +48,9 @@ export default function Home() {
           <div className="mt-8 flex flex-col gap-3 sm:flex-row">
             <Link href="/pricing" className="rounded-full bg-blue-600 px-6 py-3 text-center text-sm font-semibold text-white shadow-lg shadow-blue-600/20 transition hover:bg-blue-700">
               View pricing
+            </Link>
+            <Link href="/signup" className="rounded-full border border-slate-300 bg-white px-6 py-3 text-center text-sm font-semibold text-slate-900 transition hover:border-slate-400">
+              Start free
             </Link>
             <Link href="/dashboard" className="rounded-full border border-slate-300 bg-white px-6 py-3 text-center text-sm font-semibold text-slate-900 transition hover:border-slate-400">
               Explore dashboard
