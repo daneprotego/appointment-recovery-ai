@@ -1,7 +1,7 @@
 export type Json = string | number | boolean | null | { [key: string]: Json | undefined } | Json[];
 
 export type BusinessStatus = 'active' | 'inactive' | 'trialing' | 'suspended';
-export type UserRole = 'owner' | 'admin' | 'staff' | 'viewer';
+export type UserRole = 'owner' | 'admin' | 'staff';
 export type CustomerStatus = 'active' | 'inactive' | 'blocked';
 export type AppointmentStatus = 'scheduled' | 'confirmed' | 'cancelled' | 'no_show' | 'completed' | 'rescheduled';
 export type AppointmentRiskLevel = 'low' | 'medium' | 'high' | 'recovered';

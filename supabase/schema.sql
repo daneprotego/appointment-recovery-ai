@@ -4,7 +4,7 @@
 create extension if not exists pgcrypto;
 
 create type public.business_status as enum ('active', 'inactive', 'trialing', 'suspended');
-create type public.user_role as enum ('owner', 'admin', 'staff', 'viewer');
+create type public.user_role as enum ('owner', 'admin', 'staff');
 create type public.customer_status as enum ('active', 'inactive', 'blocked');
 create type public.appointment_status as enum ('scheduled', 'confirmed', 'cancelled', 'no_show', 'completed', 'rescheduled');
 create type public.appointment_risk_level as enum ('low', 'medium', 'high', 'recovered');

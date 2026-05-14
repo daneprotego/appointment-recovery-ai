@@ -1,7 +1,7 @@
 const integrationGroups = [
   {
     name: "Supabase",
-    description: "Store businesses, users, appointments, customers, messages, and waitlist records.",
+    description: "Store businesses, users, owner/admin/staff roles, appointments, customers, messages, waitlist records, and Supabase Auth sessions.",
     variables: ["NEXT_PUBLIC_SUPABASE_URL", "NEXT_PUBLIC_SUPABASE_ANON_KEY", "SUPABASE_SERVICE_ROLE_KEY"],
   },
   {
