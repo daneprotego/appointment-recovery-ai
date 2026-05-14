@@ -2,7 +2,7 @@
 
 import { redirect } from 'next/navigation';
 
-import { createOwnerBusinessForUser, updateBusinessOnboarding } from '@/lib/auth/business';
+import { createOwnerBusinessForUser, seedDemoBusinessData, updateBusinessOnboarding } from '@/lib/auth/business';
 import { requireSession } from '@/lib/auth/session';
 import { getSupabaseAdminClient } from '@/lib/supabase/admin';
 import { createSupabaseServerClient } from '@/lib/supabase/server';
@@ -93,6 +93,8 @@ export async function completeOnboardingAction(formData: FormData) {
     businessName,
     timezone,
   });
+
+  await seedDemoBusinessData(session.business.id);
 
   redirect('/dashboard');
 }
