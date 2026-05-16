@@ -161,11 +161,11 @@ export async function seedDemoBusinessData(businessId: string) {
   const { data: customers, error: customerError } = await supabase
     .from('customers')
     .insert([
-      { business_id: businessId, first_name: 'Avery', last_name: 'Chen', email: 'avery@example.com', phone: '+15550148821', sms_opt_in: true, email_opt_in: true, lifetime_value_cents: 124000, notes: 'Prefers morning appointments.' },
-      { business_id: businessId, first_name: 'Marcus', last_name: 'Reed', email: 'marcus@example.com', phone: '+15550184430', sms_opt_in: true, email_opt_in: false, no_show_count: 1, lifetime_value_cents: 88000, notes: 'Usually replies quickly by SMS.' },
-      { business_id: businessId, first_name: 'Priya', last_name: 'Shah', email: 'priya@example.com', phone: '+15550119284', sms_opt_in: true, email_opt_in: true, no_show_count: 2, lifetime_value_cents: 245000, notes: 'High-value recovery profile.' },
-      { business_id: businessId, first_name: 'Jordan', last_name: 'Kim', email: 'jordan@example.com', phone: '+15550173329', sms_opt_in: true, email_opt_in: true, lifetime_value_cents: 76000, notes: 'Flexible on Thursdays.' },
-      { business_id: businessId, first_name: 'Sofia', last_name: 'Garcia', email: 'sofia@example.com', phone: '+15550131099', sms_opt_in: true, email_opt_in: true, lifetime_value_cents: 108000, notes: 'Interested in short-notice openings.' },
+      { business_id: businessId, first_name: 'Avery', last_name: 'Chen', email: 'avery@example.com', phone: '+15550148821', status: 'active', sms_opt_in: true, email_opt_in: true, no_show_count: 0, lifetime_value_cents: 124000, notes: 'Prefers morning appointments.', metadata: {} },
+      { business_id: businessId, first_name: 'Marcus', last_name: 'Reed', email: 'marcus@example.com', phone: '+15550184430', status: 'active', sms_opt_in: true, email_opt_in: false, no_show_count: 0, lifetime_value_cents: 88000, notes: 'Usually replies quickly by SMS.', metadata: {} },
+      { business_id: businessId, first_name: 'Priya', last_name: 'Shah', email: 'priya@example.com', phone: '+15550119284', status: 'active', sms_opt_in: true, email_opt_in: true, no_show_count: 0, lifetime_value_cents: 245000, notes: 'High-value recovery profile.', metadata: {} },
+      { business_id: businessId, first_name: 'Jordan', last_name: 'Kim', email: 'jordan@example.com', phone: '+15550173329', status: 'active', sms_opt_in: true, email_opt_in: true, no_show_count: 0, lifetime_value_cents: 76000, notes: 'Flexible on Thursdays.', metadata: {} },
+      { business_id: businessId, first_name: 'Sofia', last_name: 'Garcia', email: 'sofia@example.com', phone: '+15550131099', status: 'active', sms_opt_in: true, email_opt_in: true, no_show_count: 0, lifetime_value_cents: 108000, notes: 'Interested in short-notice openings.', metadata: {} },
     ])
     .select('*');
 
@@ -187,11 +187,11 @@ export async function seedDemoBusinessData(businessId: string) {
   const { data: appointments, error: appointmentError } = await supabase
     .from('appointments')
     .insert([
-      { business_id: businessId, customer_id: avery.id, service_name: 'Dental cleaning', starts_at: daysFromNow(1, 14), ends_at: daysFromNow(1, 15), status: 'confirmed', risk_level: 'low', value_cents: 18000 },
-      { business_id: businessId, customer_id: marcus.id, service_name: 'Physical therapy', starts_at: daysFromNow(1, 16, 30), ends_at: daysFromNow(1, 17, 15), status: 'scheduled', risk_level: 'medium', value_cents: 14000 },
-      { business_id: businessId, customer_id: priya.id, service_name: 'Consultation', starts_at: daysFromNow(2, 18), ends_at: daysFromNow(2, 19), status: 'cancelled', risk_level: 'high', value_cents: 32000, cancellation_reason: 'Client requested a different time.' },
-      { business_id: businessId, customer_id: jordan.id, service_name: 'Follow-up visit', starts_at: daysFromNow(2, 21, 30), ends_at: daysFromNow(2, 22), status: 'scheduled', risk_level: 'high', value_cents: 22000, recovery_notes: 'Reminder delivery retry queued.' },
-      { business_id: businessId, customer_id: sofia.id, service_name: 'Wellness check', starts_at: daysFromNow(3, 15, 45), ends_at: daysFromNow(3, 16, 30), status: 'rescheduled', risk_level: 'recovered', value_cents: 16000, recovery_notes: 'Filled from waitlist.' },
+      { business_id: businessId, customer_id: avery.id, service_name: 'Dental cleaning', starts_at: daysFromNow(1, 14), ends_at: daysFromNow(1, 15), status: 'confirmed', risk_level: 'low', value_cents: 18000, metadata: {} },
+      { business_id: businessId, customer_id: marcus.id, service_name: 'Physical therapy', starts_at: daysFromNow(1, 16, 30), ends_at: daysFromNow(1, 17, 15), status: 'scheduled', risk_level: 'medium', value_cents: 14000, metadata: {} },
+      { business_id: businessId, customer_id: priya.id, service_name: 'Consultation', starts_at: daysFromNow(2, 18), ends_at: daysFromNow(2, 19), status: 'cancelled', risk_level: 'high', value_cents: 32000, cancellation_reason: 'Client requested a different time.', metadata: {} },
+      { business_id: businessId, customer_id: jordan.id, service_name: 'Follow-up visit', starts_at: daysFromNow(2, 21, 30), ends_at: daysFromNow(2, 22), status: 'scheduled', risk_level: 'high', value_cents: 22000, recovery_notes: 'Reminder delivery retry queued.', metadata: {} },
+      { business_id: businessId, customer_id: sofia.id, service_name: 'Wellness check', starts_at: daysFromNow(3, 15, 45), ends_at: daysFromNow(3, 16, 30), status: 'rescheduled', risk_level: 'recovered', value_cents: 16000, recovery_notes: 'Filled from waitlist.', metadata: {} },
     ])
     .select('*');
 
@@ -204,14 +204,14 @@ export async function seedDemoBusinessData(businessId: string) {
   const recovered = appointments.find((appointment) => appointment.customer_id === sofia.id);
 
   await supabase.from('waitlists').insert([
-    { business_id: businessId, customer_id: marcus.id, requested_service_name: 'Physical therapy', earliest_start_at: daysFromNow(1, 13), latest_start_at: daysFromNow(5, 22), preferred_days: ['Tuesday', 'Thursday'], preferred_times: ['Morning', 'Afternoon'], status: 'open', notes: 'Can take cancellation slots with 2 hours notice.' },
-    { business_id: businessId, customer_id: jordan.id, requested_service_name: 'Follow-up visit', earliest_start_at: daysFromNow(1, 17), latest_start_at: daysFromNow(6, 23), preferred_days: ['Wednesday', 'Friday'], preferred_times: ['Evening'], status: 'notified', matched_appointment_id: cancelled?.id ?? null, notes: 'Offer sent for Priya cancellation.' },
-    { business_id: businessId, customer_id: sofia.id, requested_service_name: 'Wellness check', earliest_start_at: daysFromNow(1, 12), latest_start_at: daysFromNow(4, 20), preferred_days: ['Monday', 'Thursday'], preferred_times: ['Afternoon'], status: 'booked', matched_appointment_id: recovered?.id ?? null, notes: 'Booked from automated offer.' },
+    { business_id: businessId, customer_id: marcus.id, requested_service_name: 'Physical therapy', earliest_start_at: daysFromNow(1, 13), latest_start_at: daysFromNow(5, 22), preferred_days: ['Tuesday', 'Thursday'], preferred_times: ['Morning', 'Afternoon'], status: 'open', notes: 'Can take cancellation slots with 2 hours notice.', metadata: {} },
+    { business_id: businessId, customer_id: jordan.id, requested_service_name: 'Follow-up visit', earliest_start_at: daysFromNow(1, 17), latest_start_at: daysFromNow(6, 23), preferred_days: ['Wednesday', 'Friday'], preferred_times: ['Evening'], status: 'notified', matched_appointment_id: cancelled?.id ?? null, notes: 'Offer sent for Priya cancellation.', metadata: {} },
+    { business_id: businessId, customer_id: sofia.id, requested_service_name: 'Wellness check', earliest_start_at: daysFromNow(1, 12), latest_start_at: daysFromNow(4, 20), preferred_days: ['Monday', 'Thursday'], preferred_times: ['Afternoon'], status: 'booked', matched_appointment_id: recovered?.id ?? null, notes: 'Booked from automated offer.', metadata: {} },
   ]);
 
   await supabase.from('recovery_opportunities').insert([
-    { business_id: businessId, appointment_id: cancelled?.id, customer_id: priya.id, status: 'open', priority: 'urgent', score: 92, estimated_value_cents: 32000, reason: 'High-value cancellation inside 48 hours.' },
-    { business_id: businessId, appointment_id: retry?.id, customer_id: jordan.id, status: 'contacted', priority: 'high', score: 74, estimated_value_cents: 22000, reason: 'Reminder failed twice; retry with alternate copy.' },
-    { business_id: businessId, appointment_id: recovered?.id, customer_id: sofia.id, status: 'recovered', priority: 'medium', score: 88, estimated_value_cents: 16000, recovered_value_cents: 16000, resolved_at: new Date().toISOString(), reason: 'Recovered via waitlist offer.' },
+    { business_id: businessId, appointment_id: cancelled?.id, customer_id: priya.id, status: 'open', priority: 'urgent', score: 92, estimated_value_cents: 32000, recovered_value_cents: 0, reason: 'High-value cancellation inside 48 hours.', metadata: {} },
+    { business_id: businessId, appointment_id: retry?.id, customer_id: jordan.id, status: 'contacted', priority: 'high', score: 74, estimated_value_cents: 22000, recovered_value_cents: 0, reason: 'Reminder failed twice; retry with alternate copy.', metadata: {} },
+    { business_id: businessId, appointment_id: recovered?.id, customer_id: sofia.id, status: 'recovered', priority: 'medium', score: 88, estimated_value_cents: 16000, recovered_value_cents: 16000, resolved_at: new Date().toISOString(), reason: 'Recovered via waitlist offer.', metadata: {} },
   ].filter((opportunity) => opportunity.appointment_id));
 }
