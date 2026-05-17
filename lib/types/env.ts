@@ -5,8 +5,7 @@ export interface AppEnvironment {
   supabaseServiceRoleKey: string;
   twilioAccountSid: string;
   twilioAuthToken: string;
-  twilioMessagingServiceSid: string;
-  twilioPhoneNumber: string;
+  twilioSmsFromNumber: string;
   twilioSmsEnabled: string;
   twilioValidateWebhookSignatures: string;
   openaiApiKey: string;
@@ -23,8 +22,7 @@ export function getAppEnvironment(): AppEnvironment {
     supabaseServiceRoleKey: process.env.SUPABASE_SERVICE_ROLE_KEY ?? '',
     twilioAccountSid: process.env.TWILIO_ACCOUNT_SID ?? '',
     twilioAuthToken: process.env.TWILIO_AUTH_TOKEN ?? '',
-    twilioMessagingServiceSid: process.env.TWILIO_MESSAGING_SERVICE_SID ?? '',
-    twilioPhoneNumber: process.env.TWILIO_PHONE_NUMBER ?? '',
+    twilioSmsFromNumber: process.env.TWILIO_SMS_FROM_NUMBER ?? '',
     twilioSmsEnabled: process.env.TWILIO_SMS_ENABLED ?? 'false',
     twilioValidateWebhookSignatures: process.env.TWILIO_VALIDATE_WEBHOOK_SIGNATURES ?? 'false',
     openaiApiKey: process.env.OPENAI_API_KEY ?? '',

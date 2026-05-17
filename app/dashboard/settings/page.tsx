@@ -7,7 +7,7 @@ const integrationGroups = [
   {
     name: "Twilio",
     description: "Send SMS reminders and receive webhook replies for AI classification.",
-    variables: ["TWILIO_ACCOUNT_SID", "TWILIO_AUTH_TOKEN", "TWILIO_MESSAGING_SERVICE_SID", "TWILIO_PHONE_NUMBER"],
+    variables: ["TWILIO_ACCOUNT_SID", "TWILIO_AUTH_TOKEN", "TWILIO_SMS_FROM_NUMBER", "TWILIO_SMS_ENABLED"],
   },
   {
     name: "OpenAI",

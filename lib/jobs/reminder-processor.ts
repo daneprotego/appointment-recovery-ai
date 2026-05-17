@@ -1,4 +1,4 @@
-import { sendSmsReminderPlaceholder, type SmsReminderDeliveryResult } from '@/lib/reminders/delivery';
+import { sendSmsReminder, type SmsReminderDeliveryResult } from '@/lib/reminders/delivery';
 import { getSupabaseAdminClient } from '@/lib/supabase/admin';
 import type { Reminder } from '@/lib/types/database';
 import { recordCommunicationEvent } from '@/lib/workflows/communications';
@@ -123,7 +123,7 @@ export async function processDueReminders(options: ReminderJobOptions = {}): Pro
 
   const { data, error } = await supabase
     .from('reminders')
-    .select('*, businesses!inner(twilio_messaging_service_sid, sms_from_number), customers!inner(phone, sms_opt_in)')
+    .select('*, businesses!inner(sms_from_number), customers!inner(phone, sms_opt_in)')
     .in('status', ['queued', 'failed'])
     .lte('scheduled_for', now.toISOString())
     .or(`next_attempt_at.is.null,next_attempt_at.lte.${now.toISOString()}`)
@@ -139,7 +139,7 @@ export async function processDueReminders(options: ReminderJobOptions = {}): Pro
 
   for (const record of data ?? []) {
     const reminder = record as Reminder & {
-      businesses: { twilio_messaging_service_sid: string | null; sms_from_number: string | null };
+      businesses: { sms_from_number: string | null };
       customers: { phone: string | null; sms_opt_in: boolean };
     };
 
@@ -153,7 +153,7 @@ export async function processDueReminders(options: ReminderJobOptions = {}): Pro
 
       result.processed += 1;
       const attemptCount = claimedReminder.attempt_count ?? (reminder.attempt_count ?? 0) + 1;
-      const delivery = await sendSmsReminderPlaceholder({ business: reminder.businesses, customer: reminder.customers, reminder: claimedReminder });
+      const delivery = await sendSmsReminder({ business: reminder.businesses, customer: reminder.customers, reminder: claimedReminder });
 
       if (delivery.dryRun) {
         result.dryRun += 1;
@@ -173,7 +173,7 @@ export async function processDueReminders(options: ReminderJobOptions = {}): Pro
           eventType: 'reminder_sent',
           body: claimedReminder.message_body,
           providerMessageId: delivery.providerMessageId,
-          metadata: { provider: delivery.provider, dry_run: delivery.dryRun, attempt_count: attemptCount },
+          metadata: { provider: delivery.provider, dry_run: delivery.dryRun, attempt_count: attemptCount, twilio_message_sid: delivery.providerMessageId, provider_metadata: delivery.providerMetadata ?? null },
         }).catch(async (timelineError: unknown) => {
           const message = timelineError instanceof Error ? timelineError.message : 'Unable to record reminder_sent communication event.';
           await supabase.from('reminders').update({ error_message: message, locked_at: null }).eq('id', sentReminder.id);
