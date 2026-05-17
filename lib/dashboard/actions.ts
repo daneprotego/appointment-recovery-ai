@@ -3,7 +3,10 @@
 import { revalidatePath } from 'next/cache';
 
 import { requireOnboardedSession } from '@/lib/auth/session';
+import { sendSmsReminder } from '@/lib/reminders/delivery';
+import { buildSmsReminderInput } from '@/lib/reminders/scheduling';
 import { getSupabaseAdminClient } from '@/lib/supabase/admin';
+import { recordCommunicationEvent } from '@/lib/workflows/communications';
 import type {
   AppointmentRiskLevel,
   AppointmentStatus,
@@ -11,6 +14,10 @@ import type {
   RecoveryOpportunityPriority,
   RecoveryOpportunityStatus,
   WaitlistStatus,
+  Appointment,
+  Business,
+  Customer,
+  Reminder,
 } from '@/lib/types/database';
 
 const appointmentStatuses = ['scheduled', 'confirmed', 'cancelled', 'no_show', 'completed', 'rescheduled'] as const;
@@ -259,4 +266,103 @@ export async function deleteRecoveryOpportunityAction(formData: FormData) {
   const { error } = await supabase.from('recovery_opportunities').delete().eq('id', id).eq('business_id', session.business.id);
   if (error) throw new Error(error.message);
   revalidateDashboard();
+}
+
+export async function sendAppointmentTestSmsAction(formData: FormData): Promise<{ ok: boolean; message: string }> {
+  const { session, supabase } = await assertSession();
+  const appointmentId = getString(formData, 'id');
+
+  if (!appointmentId) {
+    return { ok: false, message: 'A valid appointment is required to send a test SMS.' };
+  }
+
+  const [{ data: business, error: businessError }, { data: appointment, error: appointmentError }] = await Promise.all([
+    supabase
+      .from('businesses')
+      .select('id, name, timezone, sms_from_number')
+      .eq('id', session.business.id)
+      .single(),
+    supabase
+      .from('appointments')
+      .select('*, customers!inner(id, first_name, phone, sms_opt_in)')
+      .eq('id', appointmentId)
+      .eq('business_id', session.business.id)
+      .single(),
+  ]);
+
+  if (businessError || !business) {
+    throw new Error(`Unable to load business for test SMS: ${businessError?.message ?? 'business not found'}`);
+  }
+
+  if (appointmentError || !appointment) {
+    throw new Error(`Unable to load appointment for test SMS: ${appointmentError?.message ?? 'appointment not found'}`);
+  }
+
+  const typedBusiness = business as Pick<Business, 'id' | 'name' | 'timezone' | 'sms_from_number'>;
+  const typedAppointment = appointment as Appointment & { customers: Pick<Customer, 'id' | 'first_name' | 'phone' | 'sms_opt_in'> };
+  const reminderInput = buildSmsReminderInput(
+    {
+      business: typedBusiness,
+      appointment: typedAppointment,
+      customer: typedAppointment.customers,
+    },
+    { leadTimeMinutes: 0, now: new Date() },
+  );
+
+  const { data: reminder, error: reminderError } = await supabase
+    .from('reminders')
+    .insert({
+      ...reminderInput,
+      scheduled_for: new Date().toISOString(),
+      metadata: {
+        ...(typeof reminderInput.metadata === 'object' && reminderInput.metadata !== null && !Array.isArray(reminderInput.metadata) ? reminderInput.metadata : {}),
+        scheduling_source: 'dashboard_test_sms',
+      },
+    })
+    .select('*')
+    .single();
+
+  if (reminderError || !reminder) {
+    throw new Error(`Unable to create test SMS reminder: ${reminderError?.message ?? 'reminder not created'}`);
+  }
+
+  const typedReminder = reminder as Reminder;
+  const delivery = await sendSmsReminder({
+    business: typedBusiness,
+    customer: typedAppointment.customers,
+    reminder: typedReminder,
+  });
+
+  if (delivery.reminderStatus === 'sent') {
+    await recordCommunicationEvent({
+      businessId: typedReminder.business_id,
+      customerId: typedReminder.customer_id,
+      appointmentId: typedReminder.appointment_id,
+      reminderId: typedReminder.id,
+      channel: typedReminder.channel,
+      direction: 'outbound',
+      eventType: 'reminder_sent',
+      body: typedReminder.message_body,
+      providerMessageId: delivery.providerMessageId,
+      metadata: {
+        provider: delivery.provider,
+        dry_run: delivery.dryRun,
+        source: 'dashboard_test_sms',
+        twilio_message_sid: delivery.providerMessageId,
+        provider_metadata: delivery.providerMetadata ?? null,
+      },
+    });
+  }
+
+  revalidateDashboard();
+
+  if (delivery.reminderStatus === 'sent') {
+    return { ok: true, message: `Test SMS sent. Twilio SID: ${delivery.providerMessageId ?? 'unavailable'}.` };
+  }
+
+  if (delivery.dryRun) {
+    return { ok: true, message: delivery.errorMessage ?? 'Test SMS skipped safely because Twilio is not configured.' };
+  }
+
+  return { ok: false, message: delivery.errorMessage ?? 'Unable to send test SMS reminder.' };
 }

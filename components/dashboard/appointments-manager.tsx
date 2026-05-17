@@ -3,7 +3,7 @@
 import { useRouter } from 'next/navigation';
 import { useMemo, useOptimistic, useState, useTransition } from 'react';
 
-import { deleteAppointmentAction, saveAppointmentAction } from '@/lib/dashboard/actions';
+import { deleteAppointmentAction, saveAppointmentAction, sendAppointmentTestSmsAction } from '@/lib/dashboard/actions';
 import { formatCurrency, formatDateTime, toDatetimeLocalValue } from '@/lib/dashboard/format';
 import type { DashboardAppointment, DashboardCustomer } from '@/lib/dashboard/types';
 import { EmptyState, LoadingRows, PaginationControls, SearchFilterBar, StatusBadge } from '@/components/dashboard/ui';
@@ -43,6 +43,20 @@ export function AppointmentsManager({ appointments, customers }: Readonly<{ appo
     });
   }
 
+  function sendTestSms(id: string) {
+    startTransition(async () => {
+      const formData = new FormData();
+      formData.set('id', id);
+      try {
+        const result = await sendAppointmentTestSmsAction(formData);
+        notify(result.message, result.ok ? 'success' : 'error');
+        router.refresh();
+      } catch (error) {
+        notify(error instanceof Error ? error.message : 'Unable to send test SMS reminder.', 'error');
+      }
+    });
+  }
+
   async function submit(formData: FormData) {
     try { await saveAppointmentAction(formData); notify(`Appointment ${formData.get('id') ? 'updated' : 'created'}.`); closeForm(); router.refresh(); }
     catch (error) { notify(error instanceof Error ? error.message : 'Unable to save appointment.', 'error'); }
@@ -56,7 +70,7 @@ export function AppointmentsManager({ appointments, customers }: Readonly<{ appo
           <div className="overflow-x-auto">
             <table className="w-full min-w-[960px] text-left text-sm">
               <thead className="bg-slate-50 text-xs uppercase tracking-wider text-slate-500"><tr><th className="px-6 py-4">Time</th><th className="px-6 py-4">Customer</th><th className="px-6 py-4">Service</th><th className="px-6 py-4">Status</th><th className="px-6 py-4">Risk</th><th className="px-6 py-4 text-right">Value</th><th className="px-6 py-4 text-right">Actions</th></tr></thead>
-              {isPending ? <LoadingRows columns={7} /> : <tbody className="divide-y divide-slate-100">{paged.map((appointment) => <tr key={appointment.id} className="hover:bg-slate-50"><td className="px-6 py-5 font-medium">{formatDateTime(appointment.startsAt)}</td><td className="px-6 py-5"><p className="font-semibold">{appointment.customerName}</p><p className="text-xs text-slate-500">{appointment.customerPhone}</p></td><td className="px-6 py-5 text-slate-700">{appointment.serviceName}</td><td className="px-6 py-5"><StatusBadge value={appointment.status} /></td><td className="px-6 py-5"><StatusBadge value={appointment.riskLevel} /></td><td className="px-6 py-5 text-right font-semibold">{formatCurrency(appointment.valueCents)}</td><td className="px-6 py-5 text-right"><button onClick={() => setEditing(appointment)} className="font-semibold text-blue-600">Edit</button><button onClick={() => deleteRecord(appointment.id)} className="ml-4 font-semibold text-rose-600">Delete</button></td></tr>)}</tbody>}
+              {isPending ? <LoadingRows columns={7} /> : <tbody className="divide-y divide-slate-100">{paged.map((appointment) => <tr key={appointment.id} className="hover:bg-slate-50"><td className="px-6 py-5 font-medium">{formatDateTime(appointment.startsAt)}</td><td className="px-6 py-5"><p className="font-semibold">{appointment.customerName}</p><p className="text-xs text-slate-500">{appointment.customerPhone}</p></td><td className="px-6 py-5 text-slate-700">{appointment.serviceName}</td><td className="px-6 py-5"><StatusBadge value={appointment.status} /></td><td className="px-6 py-5"><StatusBadge value={appointment.riskLevel} /></td><td className="px-6 py-5 text-right font-semibold">{formatCurrency(appointment.valueCents)}</td><td className="px-6 py-5 text-right"><button onClick={() => sendTestSms(appointment.id)} className="font-semibold text-emerald-600">Test SMS</button><button onClick={() => setEditing(appointment)} className="ml-4 font-semibold text-blue-600">Edit</button><button onClick={() => deleteRecord(appointment.id)} className="ml-4 font-semibold text-rose-600">Delete</button></td></tr>)}</tbody>}
             </table>
           </div>
           <PaginationControls page={page} pageCount={pageCount} onPage={setPage} />

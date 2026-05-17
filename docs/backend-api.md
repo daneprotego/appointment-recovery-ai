@@ -11,8 +11,8 @@ Use placeholders in `.env.example` and real values only in local or hosted secre
 - `SUPABASE_SERVICE_ROLE_KEY`
 - `TWILIO_ACCOUNT_SID`
 - `TWILIO_AUTH_TOKEN`
-- `TWILIO_MESSAGING_SERVICE_SID`
-- `TWILIO_PHONE_NUMBER`
+- `TWILIO_SMS_FROM_NUMBER`
+- `TWILIO_SMS_ENABLED`
 
 ## Supabase Auth
 

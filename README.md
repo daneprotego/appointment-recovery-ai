@@ -16,7 +16,7 @@ A clean MVP for a low-cost SaaS that helps appointment-based businesses reduce m
 - Supabase SQL schema and migration files live in `supabase/schema.sql` and `supabase/migrations/`.
 - TypeScript database interfaces live in `lib/types/database.ts`.
 - API route structure and example CRUD requests are documented in `docs/backend-api.md`.
-- Twilio integration is prepared with environment placeholders and a no-op SMS queue adapter in `lib/sms/twilio.ts`; no real API keys are committed.
+- Twilio integration uses the official Node SDK in `lib/sms/twilio.ts` to send real SMS reminders when server-side credentials are configured; no real API keys are committed.
 - A health check endpoint is available at `/api/health` for Vercel uptime checks and deployment verification.
 
 ## Local setup
@@ -49,9 +49,8 @@ Configure these in Vercel under **Project Settings > Environment Variables** for
 | `REMINDER_JOB_SECRET` | Yes | `replace-me-long-random-job-secret` | Long random string required by the reminder job endpoint. |
 | `TWILIO_ACCOUNT_SID` | Optional | `replace-me-twilio-account-sid` | Required only when SMS sending is enabled. |
 | `TWILIO_AUTH_TOKEN` | Optional | `replace-me-twilio-auth-token` | Required only when SMS sending is enabled. |
-| `TWILIO_MESSAGING_SERVICE_SID` | Optional | `replace-me-twilio-messaging-service-sid` | Use either a Messaging Service SID or phone number for Twilio sending. |
-| `TWILIO_PHONE_NUMBER` | Optional | `+15555550100` | E.164 sender number if not using a Messaging Service. |
-| `TWILIO_SMS_ENABLED` | Optional | `false` | Set to `true` only after Twilio credentials and compliance are ready. |
+| `TWILIO_SMS_FROM_NUMBER` | Optional | `+15555550100` | E.164 Twilio sender number used for outbound SMS reminders. SMS falls back safely without sending if this or the Twilio credentials are missing. |
+| `TWILIO_SMS_ENABLED` | Optional | `false` | Set to `true` only after Twilio credentials, sender registration, and compliance are ready. |
 | `TWILIO_VALIDATE_WEBHOOK_SIGNATURES` | Optional | `false` | Set to `true` in production when Twilio webhooks are configured. |
 | `OPENAI_API_KEY` | Optional | `replace-me-openai-api-key` | Required only for AI-powered message classification or generation. |
 | `NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY` | Optional | `replace-me-stripe-publishable-key` | Required only when Stripe checkout is connected. |
@@ -126,7 +125,7 @@ Before promoting a deployment to production:
 - [ ] Required Vercel environment variables are set with real values, not placeholders.
 - [ ] `SUPABASE_SERVICE_ROLE_KEY`, `STRIPE_SECRET_KEY`, webhook secrets, OAuth secrets, and Twilio auth token are server-only.
 - [ ] Supabase Auth Site URL and redirect URLs match the deployed domain.
-- [ ] `TWILIO_SMS_ENABLED` remains `false` until Twilio credentials, sender registration, and webhook validation are ready.
+- [ ] `TWILIO_SMS_ENABLED` remains `false` until `TWILIO_ACCOUNT_SID`, `TWILIO_AUTH_TOKEN`, `TWILIO_SMS_FROM_NUMBER`, sender registration, and webhook validation are ready.
 - [ ] `TWILIO_VALIDATE_WEBHOOK_SIGNATURES` is enabled before accepting production Twilio webhooks.
 - [ ] `REMINDER_JOB_SECRET` is a long random value and shared only with the scheduler.
 - [ ] `npm run typecheck` passes.
