@@ -7,6 +7,26 @@ export interface WaitlistMatchResult {
   notified: number;
 }
 
+export interface WaitlistMatchSuggestion {
+  entryId: string;
+  customerId: string;
+  customerName: string;
+  customerPhone: string;
+  requestedService: string;
+  startsAt: string;
+  urgencyScore: number;
+}
+
+function createdAtAgeBonus(createdAt: string): number {
+  const createdAtMs = new Date(createdAt).getTime();
+  if (!Number.isFinite(createdAtMs)) {
+    return 0;
+  }
+
+  const daysOpen = Math.max(0, (Date.now() - createdAtMs) / (1000 * 60 * 60 * 24));
+  return Math.min(10, Math.floor(daysOpen / 7));
+}
+
 function serviceMatches(entry: Pick<WaitlistEntry, 'requested_service_name'>, appointment: Pick<Appointment, 'service_name'>): boolean {
   return !entry.requested_service_name || entry.requested_service_name.toLowerCase() === appointment.service_name.toLowerCase();
 }
@@ -34,6 +54,45 @@ export async function findWaitlistMatches(appointment: Pick<Appointment, 'id' | 
 
   return ((data ?? []) as WaitlistEntry[])
     .filter((entry) => serviceMatches(entry, appointment) && timeWindowMatches(entry, appointment.starts_at))
+    .slice(0, limit);
+}
+
+export async function suggestWaitlistMatches(
+  appointment: Pick<Appointment, 'id' | 'business_id' | 'service_name' | 'starts_at' | 'risk_level'>,
+  limit = 5,
+): Promise<WaitlistMatchSuggestion[]> {
+  const supabase = getSupabaseAdminClient();
+  const { data, error } = await supabase
+    .from('waitlists')
+    .select('*, customers(first_name, last_name, phone, no_show_count)')
+    .eq('business_id', appointment.business_id)
+    .eq('status', 'open')
+    .order('created_at', { ascending: true });
+
+  if (error) {
+    throw new Error(`Unable to suggest waitlist matches: ${error.message}`);
+  }
+
+  const riskWeight = appointment.risk_level === 'high' ? 20 : appointment.risk_level === 'medium' ? 10 : 0;
+
+  return ((data ?? []) as Array<WaitlistEntry & { customers: { first_name: string; last_name: string; phone: string | null; no_show_count: number } | null }>)
+    .filter((entry) => serviceMatches(entry, appointment) && timeWindowMatches(entry, appointment.starts_at))
+    .map((entry) => {
+      const noShowCount = Math.max(0, entry.customers?.no_show_count ?? 0);
+      const reliabilityBonus = Math.max(0, 20 - noShowCount * 5);
+      const phoneBonus = entry.customers?.phone ? 3 : 0;
+      const ageBonus = createdAtAgeBonus(entry.created_at);
+      return {
+        entryId: entry.id,
+        customerId: entry.customer_id,
+        customerName: entry.customers ? `${entry.customers.first_name} ${entry.customers.last_name}` : 'Unknown customer',
+        customerPhone: entry.customers?.phone ?? '',
+        requestedService: entry.requested_service_name ?? appointment.service_name,
+        startsAt: appointment.starts_at,
+        urgencyScore: riskWeight + reliabilityBonus + phoneBonus + ageBonus,
+      };
+    })
+    .sort((a, b) => b.urgencyScore - a.urgencyScore)
     .slice(0, limit);
 }
 
