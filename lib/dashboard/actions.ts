@@ -8,6 +8,7 @@ import { buildSmsReminderInput } from '@/lib/reminders/scheduling';
 import { queueSmsReminder } from '@/lib/sms/twilio';
 import { getSupabaseAdminClient } from '@/lib/supabase/admin';
 import { recordCommunicationEvent } from '@/lib/workflows/communications';
+import { transitionAppointmentStatus } from '@/lib/workflows/appointment-lifecycle';
 import type {
   AppointmentRiskLevel,
   AppointmentStatus,
@@ -168,23 +169,64 @@ export async function saveAppointmentAction(formData: FormData) {
 
   const startsAt = getIsoDate(formData, 'startsAt') ?? new Date().toISOString();
   const endsAt = getIsoDate(formData, 'endsAt');
+  const status = enumValue(getString(formData, 'status'), appointmentStatuses, 'scheduled') as AppointmentStatus;
   const payload = {
     business_id: session.business.id,
     customer_id: customerId,
     service_name: getString(formData, 'serviceName'),
     starts_at: startsAt,
     ends_at: endsAt,
-    status: enumValue(getString(formData, 'status'), appointmentStatuses, 'scheduled') as AppointmentStatus,
+    status,
     risk_level: enumValue(getString(formData, 'riskLevel'), riskLevels, 'low') as AppointmentRiskLevel,
     value_cents: getCents(formData, 'value'),
     cancellation_reason: getString(formData, 'cancellationReason') || null,
     recovery_notes: getString(formData, 'recoveryNotes') || null,
   };
-  const query = id
-    ? supabase.from('appointments').update(payload).eq('id', id).eq('business_id', session.business.id)
-    : supabase.from('appointments').insert(payload);
-  const { error } = await query;
-  if (error) throw new Error(error.message);
+
+  if (id) {
+    const { data: existing, error: existingError } = await supabase
+      .from('appointments')
+      .select('id, status')
+      .eq('id', id)
+      .eq('business_id', session.business.id)
+      .maybeSingle<{ id: string; status: AppointmentStatus }>();
+
+    if (existingError) throw new Error(existingError.message);
+    if (!existing) throw new Error('Appointment not found for this business.');
+
+    const nonStatusPayload = {
+      customer_id: payload.customer_id,
+      service_name: payload.service_name,
+      starts_at: payload.starts_at,
+      ends_at: payload.ends_at,
+      risk_level: payload.risk_level,
+      value_cents: payload.value_cents,
+    };
+
+    const { error: updateError } = await supabase.from('appointments').update(nonStatusPayload).eq('id', id).eq('business_id', session.business.id);
+    if (updateError) throw new Error(updateError.message);
+
+    if (existing.status !== status) {
+      await transitionAppointmentStatus({
+        appointmentId: id,
+        businessId: session.business.id,
+        toStatus: status,
+        reason: payload.cancellation_reason,
+        recoveryNotes: payload.recovery_notes,
+      });
+    } else {
+      const { error: sameStatusUpdateError } = await supabase
+        .from('appointments')
+        .update({ cancellation_reason: payload.cancellation_reason, recovery_notes: payload.recovery_notes })
+        .eq('id', id)
+        .eq('business_id', session.business.id);
+      if (sameStatusUpdateError) throw new Error(sameStatusUpdateError.message);
+    }
+  } else {
+    const { error } = await supabase.from('appointments').insert(payload);
+    if (error) throw new Error(error.message);
+  }
+
   revalidateDashboard();
 }
 
