@@ -80,6 +80,15 @@ function mapWaitlist(entry: WaitlistJoin): DashboardWaitlistEntry {
 }
 
 function mapOpportunity(opportunity: OpportunityJoin): DashboardRecoveryOpportunity {
+  const matchedWaitlistCustomers = (() => {
+    if (!opportunity.metadata || typeof opportunity.metadata !== 'object' || Array.isArray(opportunity.metadata)) {
+      return [];
+    }
+
+    const candidates = (opportunity.metadata as Record<string, unknown>).matched_waitlist_customers;
+    return Array.isArray(candidates) ? candidates : [];
+  })();
+
   return {
     id: opportunity.id,
     appointmentId: opportunity.appointment_id,
@@ -95,6 +104,7 @@ function mapOpportunity(opportunity: OpportunityJoin): DashboardRecoveryOpportun
     recoveredValueCents: opportunity.recovered_value_cents,
     reason: opportunity.reason ?? '',
     resolvedAt: opportunity.resolved_at ?? '',
+    matchedWaitlistCustomers: matchedWaitlistCustomers as DashboardRecoveryOpportunity['matchedWaitlistCustomers'],
   };
 }
 

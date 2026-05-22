@@ -2,7 +2,7 @@ import { getSupabaseAdminClient } from '@/lib/supabase/admin';
 import type { Appointment, AppointmentStatus, RecoveryOpportunity } from '@/lib/types/database';
 import { recordCommunicationEvent } from '@/lib/workflows/communications';
 import { scoreRecoveryOpportunity } from '@/lib/workflows/recovery-scoring';
-import { autoFillCancelledSlot, findWaitlistMatches } from '@/lib/workflows/waitlist';
+import { autoFillCancelledSlot, findWaitlistMatches, suggestWaitlistMatches } from '@/lib/workflows/waitlist';
 
 const allowedTransitions: Record<AppointmentStatus, AppointmentStatus[]> = {
   scheduled: ['confirmed', 'cancelled', 'no_show', 'completed', 'rescheduled'],
@@ -34,9 +34,10 @@ export interface TransitionAppointmentStatusResult {
 
 export async function openRecoveryOpportunity(appointment: Appointment): Promise<RecoveryOpportunity> {
   const supabase = getSupabaseAdminClient();
-  const [{ data: customer, error: customerError }, waitlistMatches] = await Promise.all([
+  const [{ data: customer, error: customerError }, waitlistMatches, waitlistSuggestions] = await Promise.all([
     supabase.from('customers').select('*').eq('id', appointment.customer_id).eq('business_id', appointment.business_id).single(),
     findWaitlistMatches(appointment),
+    suggestWaitlistMatches(appointment),
   ]);
 
   if (customerError || !customer) {
@@ -53,7 +54,11 @@ export async function openRecoveryOpportunity(appointment: Appointment): Promise
     score: score.score,
     estimated_value_cents: appointment.value_cents,
     reason: score.reasons.join('; ') || 'appointment needs recovery',
-    metadata: { reasons: score.reasons, waitlist_matches: waitlistMatches.length },
+    metadata: {
+      reasons: score.reasons,
+      waitlist_matches: waitlistMatches.length,
+      matched_waitlist_customers: waitlistSuggestions,
+    },
   };
   const { data, error } = await supabase
     .from('recovery_opportunities')
