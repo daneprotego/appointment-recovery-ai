@@ -5,6 +5,7 @@ import { revalidatePath } from 'next/cache';
 import { requireOnboardedSession } from '@/lib/auth/session';
 import { sendSmsReminder } from '@/lib/reminders/delivery';
 import { buildSmsReminderInput } from '@/lib/reminders/scheduling';
+import { queueSmsReminder } from '@/lib/sms/twilio';
 import { getSupabaseAdminClient } from '@/lib/supabase/admin';
 import { recordCommunicationEvent } from '@/lib/workflows/communications';
 import type {
@@ -18,6 +19,7 @@ import type {
   Business,
   Customer,
   Reminder,
+  WaitlistEntry,
 } from '@/lib/types/database';
 
 const appointmentStatuses = ['scheduled', 'confirmed', 'cancelled', 'no_show', 'completed', 'rescheduled'] as const;
@@ -266,6 +268,110 @@ export async function deleteRecoveryOpportunityAction(formData: FormData) {
   const { error } = await supabase.from('recovery_opportunities').delete().eq('id', id).eq('business_id', session.business.id);
   if (error) throw new Error(error.message);
   revalidateDashboard();
+}
+
+export async function sendRecoveryOfferAction(formData: FormData): Promise<{ ok: boolean; message: string; dryRun: boolean }> {
+  const { session, supabase } = await assertSession();
+  const waitlistEntryId = getString(formData, 'waitlistEntryId');
+  const appointmentId = getString(formData, 'appointmentId');
+
+  if (!waitlistEntryId || !appointmentId) {
+    return { ok: false, message: 'Missing waitlist entry or appointment reference.', dryRun: true };
+  }
+
+  const [{ data: appointment, error: appointmentError }, { data: waitlistEntry, error: waitlistError }] = await Promise.all([
+    supabase
+      .from('appointments')
+      .select('id, business_id, service_name, starts_at, status')
+      .eq('id', appointmentId)
+      .eq('business_id', session.business.id)
+      .maybeSingle<{ id: string; business_id: string; service_name: string; starts_at: string; status: AppointmentStatus }>(),
+    supabase
+      .from('waitlists')
+      .select('id, business_id, customer_id, status, metadata, customers(id, first_name, phone, sms_opt_in)')
+      .eq('id', waitlistEntryId)
+      .eq('business_id', session.business.id)
+      .maybeSingle<WaitlistEntry & { customers: Pick<Customer, 'id' | 'first_name' | 'phone' | 'sms_opt_in'> | null }>(),
+  ]);
+
+  if (appointmentError || !appointment) {
+    return { ok: false, message: `Appointment not found for this business: ${appointmentError?.message ?? appointmentId}`, dryRun: true };
+  }
+  if (waitlistError || !waitlistEntry) {
+    return { ok: false, message: `Waitlist entry not found for this business: ${waitlistError?.message ?? waitlistEntryId}`, dryRun: true };
+  }
+  if (!['cancelled', 'no_show'].includes(appointment.status)) {
+    return {
+      ok: false,
+      message: `Recovery offers can only be sent for cancelled or no-show appointments. Current status is ${appointment.status}.`,
+      dryRun: true,
+    };
+  }
+  if (waitlistEntry.status !== 'open') {
+    return { ok: false, message: 'This waitlist entry is no longer open.', dryRun: true };
+  }
+  if (!waitlistEntry.customers?.phone) {
+    return { ok: false, message: 'Cannot send offer: customer has no phone number.', dryRun: true };
+  }
+  if (waitlistEntry.customers.sms_opt_in === false) {
+    return { ok: false, message: 'Cannot send offer: customer is not SMS opted-in.', dryRun: true };
+  }
+
+  const metadata = typeof waitlistEntry.metadata === 'object' && waitlistEntry.metadata !== null && !Array.isArray(waitlistEntry.metadata) ? waitlistEntry.metadata as Record<string, unknown> : {};
+  const priorOffers = Array.isArray(metadata.offered_for_appointments) ? metadata.offered_for_appointments : [];
+  if (priorOffers.includes(appointment.id)) {
+    return { ok: false, message: 'Offer already sent to this waitlist entry for this appointment.', dryRun: true };
+  }
+
+  const smsResult = await queueSmsReminder({
+    to: waitlistEntry.customers.phone,
+    body: `${session.business.name}: Hi ${waitlistEntry.customers.first_name}, a ${appointment.service_name} slot opened at ${new Date(appointment.starts_at).toLocaleString()}. Reply YES to claim it.`,
+  });
+
+  if (!smsResult.queued && !smsResult.dryRun) {
+    return { ok: false, message: smsResult.errorMessage ?? 'Unable to queue recovery offer.', dryRun: false };
+  }
+
+  const { error: updateError } = await supabase
+    .from('waitlists')
+    .update({
+      status: 'notified',
+      matched_appointment_id: appointment.id,
+      metadata: {
+        ...metadata,
+        offered_for_appointments: [...priorOffers, appointment.id],
+        last_offer_sent_at: new Date().toISOString(),
+        last_offer_dry_run: smsResult.dryRun,
+      },
+    })
+    .eq('id', waitlistEntry.id)
+    .eq('business_id', session.business.id)
+    .eq('status', 'open');
+
+  if (updateError) {
+    throw new Error(`Unable to update waitlist after offer send: ${updateError.message}`);
+  }
+
+  await recordCommunicationEvent({
+    businessId: session.business.id,
+    customerId: waitlistEntry.customer_id,
+    appointmentId: appointment.id,
+    channel: smsResult.dryRun ? 'system' : 'sms',
+    direction: 'outbound',
+    eventType: 'waitlist_offer',
+    body: smsResult.dryRun
+      ? `Dry-run recovery offer prepared for ${appointment.service_name} at ${appointment.starts_at}.`
+      : `Recovery offer sent for ${appointment.service_name} at ${appointment.starts_at}.`,
+    providerMessageId: smsResult.providerMessageId,
+    metadata: { dry_run: smsResult.dryRun, provider: smsResult.provider, provider_metadata: smsResult.providerMetadata ?? {} },
+  });
+
+  revalidateDashboard();
+  return {
+    ok: true,
+    dryRun: smsResult.dryRun,
+    message: smsResult.dryRun ? 'Recovery offer dry-run queued (SMS disabled).' : 'Recovery offer sent successfully.',
+  };
 }
 
 export async function sendAppointmentTestSmsAction(formData: FormData): Promise<{ ok: boolean; message: string }> {
