@@ -67,6 +67,15 @@ export interface DashboardRecoveryOpportunity {
   recoveredValueCents: number;
   reason: string;
   resolvedAt: string;
+  matchedWaitlistCustomers: Array<{
+    entryId: string;
+    customerId: string;
+    customerName: string;
+    customerPhone: string;
+    requestedService: string;
+    startsAt: string;
+    urgencyScore: number;
+  }>;
 }
 
 export interface DashboardData {
