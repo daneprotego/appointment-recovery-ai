@@ -394,6 +394,11 @@ export async function sendRecoveryOfferAction(formData: FormData): Promise<{ ok:
     throw new Error(`Unable to update waitlist after offer send: ${updateError.message}`);
   }
 
+  const providerMetadata =
+    smsResult.providerMetadata && typeof smsResult.providerMetadata === 'object' && !Array.isArray(smsResult.providerMetadata)
+      ? (smsResult.providerMetadata as Record<string, unknown>)
+      : {};
+
   await recordCommunicationEvent({
     businessId: session.business.id,
     customerId: waitlistEntry.customer_id,
@@ -405,7 +410,16 @@ export async function sendRecoveryOfferAction(formData: FormData): Promise<{ ok:
       ? `Dry-run recovery offer prepared for ${appointment.service_name} at ${appointment.starts_at}.`
       : `Recovery offer sent for ${appointment.service_name} at ${appointment.starts_at}.`,
     providerMessageId: smsResult.providerMessageId,
-    metadata: { dry_run: smsResult.dryRun, provider: smsResult.provider, provider_metadata: smsResult.providerMetadata ?? {} },
+    metadata: {
+      dry_run: smsResult.dryRun,
+      provider: smsResult.provider,
+      provider_message_sid: smsResult.providerMessageId,
+      twilio_status: typeof providerMetadata.twilio_status === 'string' ? providerMetadata.twilio_status : null,
+      twilio_error_code: providerMetadata.twilio_error_code == null ? null : String(providerMetadata.twilio_error_code),
+      twilio_error_message: typeof providerMetadata.twilio_error_message === 'string' ? providerMetadata.twilio_error_message : null,
+      waitlist_entry_id: waitlistEntry.id,
+      provider_metadata: smsResult.providerMetadata ?? {},
+    },
   });
 
   revalidateDashboard();
