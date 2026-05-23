@@ -75,6 +75,14 @@ export interface DashboardRecoveryOpportunity {
     requestedService: string;
     startsAt: string;
     urgencyScore: number;
+    latestOfferEvent: {
+      occurredAt: string;
+      dryRun: boolean;
+      providerMessageSid: string | null;
+      twilioStatus: string | null;
+      twilioErrorCode: string | null;
+      twilioErrorMessage: string | null;
+    } | null;
   }>;
 }
 

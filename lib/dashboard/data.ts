@@ -24,6 +24,19 @@ interface OpportunityJoin extends RecoveryOpportunity {
   appointments: Pick<Appointment, 'id' | 'service_name' | 'starts_at'> | null;
 }
 
+interface WaitlistOfferEventJoin {
+  appointment_id: string | null;
+  customer_id: string;
+  occurred_at: string;
+  metadata: unknown;
+}
+
+function getEventWaitlistEntryId(event: WaitlistOfferEventJoin): string | null {
+  if (!event.metadata || typeof event.metadata !== 'object' || Array.isArray(event.metadata)) return null;
+  const value = (event.metadata as Record<string, unknown>).waitlist_entry_id;
+  return typeof value === 'string' ? value : null;
+}
+
 function customerName(customer: CustomerJoin | null) {
   return customer ? `${customer.first_name} ${customer.last_name}` : 'Unknown customer';
 }
@@ -108,10 +121,25 @@ function mapOpportunity(opportunity: OpportunityJoin): DashboardRecoveryOpportun
   };
 }
 
+function parseLatestOfferEvent(event: WaitlistOfferEventJoin | undefined) {
+  if (!event) return null;
+  const metadata = event.metadata && typeof event.metadata === 'object' && !Array.isArray(event.metadata)
+    ? event.metadata as Record<string, unknown>
+    : {};
+  return {
+    occurredAt: event.occurred_at,
+    dryRun: metadata.dry_run === true,
+    providerMessageSid: typeof metadata.provider_message_sid === 'string' ? metadata.provider_message_sid : null,
+    twilioStatus: typeof metadata.twilio_status === 'string' ? metadata.twilio_status : null,
+    twilioErrorCode: metadata.twilio_error_code == null ? null : String(metadata.twilio_error_code),
+    twilioErrorMessage: typeof metadata.twilio_error_message === 'string' ? metadata.twilio_error_message : null,
+  };
+}
+
 export const getDashboardData = cache(async (businessId: string): Promise<DashboardData> => {
   const supabase = getSupabaseAdminClient();
 
-  const [customersResult, appointmentsResult, waitlistResult, opportunitiesResult] = await Promise.all([
+  const [customersResult, appointmentsResult, waitlistResult, opportunitiesResult, waitlistOffersResult] = await Promise.all([
     supabase.from('customers').select('*').eq('business_id', businessId).order('created_at', { ascending: false }).returns<Customer[]>(),
     supabase
       .from('appointments')
@@ -131,18 +159,44 @@ export const getDashboardData = cache(async (businessId: string): Promise<Dashbo
       .eq('business_id', businessId)
       .order('score', { ascending: false })
       .returns<OpportunityJoin[]>(),
+    supabase
+      .from('communication_events')
+      .select('appointment_id, customer_id, occurred_at, metadata')
+      .eq('business_id', businessId)
+      .eq('event_type', 'waitlist_offer')
+      .order('occurred_at', { ascending: false })
+      .returns<WaitlistOfferEventJoin[]>(),
   ]);
 
-  for (const result of [customersResult, appointmentsResult, waitlistResult, opportunitiesResult]) {
+  for (const result of [customersResult, appointmentsResult, waitlistResult, opportunitiesResult, waitlistOffersResult]) {
     if (result.error) {
       throw new Error(result.error.message);
     }
   }
 
+  const latestOfferEventByAppointmentAndWaitlistEntry = new Map<string, WaitlistOfferEventJoin>();
+  for (const event of waitlistOffersResult.data ?? []) {
+    if (!event.appointment_id) continue;
+    const waitlistEntryId = getEventWaitlistEntryId(event);
+    if (!waitlistEntryId) continue;
+    const key = `${event.appointment_id}:${waitlistEntryId}`;
+    if (!latestOfferEventByAppointmentAndWaitlistEntry.has(key)) {
+      latestOfferEventByAppointmentAndWaitlistEntry.set(key, event);
+    }
+  }
+
+  const opportunities = (opportunitiesResult.data ?? []).map(mapOpportunity).map((opportunity) => ({
+    ...opportunity,
+    matchedWaitlistCustomers: opportunity.matchedWaitlistCustomers.map((candidate) => ({
+      ...candidate,
+      latestOfferEvent: parseLatestOfferEvent(latestOfferEventByAppointmentAndWaitlistEntry.get(`${opportunity.appointmentId}:${candidate.entryId}`)),
+    })),
+  }));
+
   return {
     customers: (customersResult.data ?? []).map(mapCustomer),
     appointments: (appointmentsResult.data ?? []).map(mapAppointment),
     waitlist: (waitlistResult.data ?? []).map(mapWaitlist),
-    opportunities: (opportunitiesResult.data ?? []).map(mapOpportunity),
+    opportunities,
   };
 });
