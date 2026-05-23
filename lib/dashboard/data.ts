@@ -31,6 +31,16 @@ interface WaitlistOfferEventJoin {
   metadata: unknown;
 }
 
+function getEventWaitlistEntryId(event: WaitlistOfferEventJoin): string | null {
+  if (!event.metadata || typeof event.metadata !== 'object' || Array.isArray(event.metadata)) {
+    return null;
+  }
+
+  const value = (event.metadata as Record<string, unknown>).waitlist_entry_id;
+
+  return typeof value === 'string' ? value : null;
+}
+
 function customerName(customer: CustomerJoin | null) {
   return customer ? `${customer.first_name} ${customer.last_name}` : 'Unknown customer';
 }
@@ -168,12 +178,16 @@ export const getDashboardData = cache(async (businessId: string): Promise<Dashbo
     }
   }
 
-  const latestOfferEventByAppointmentAndCustomer = new Map<string, WaitlistOfferEventJoin>();
+  const latestOfferEventByAppointmentAndWaitlistEntry = new Map<string, WaitlistOfferEventJoin>();
   for (const event of waitlistOffersResult.data ?? []) {
     if (!event.appointment_id) continue;
-    const key = `${event.appointment_id}:${event.customer_id}`;
-    if (!latestOfferEventByAppointmentAndCustomer.has(key)) {
-      latestOfferEventByAppointmentAndCustomer.set(key, event);
+
+    const waitlistEntryId = getEventWaitlistEntryId(event);
+    if (!waitlistEntryId) continue;
+
+    const key = `${event.appointment_id}:${waitlistEntryId}`;
+    if (!latestOfferEventByAppointmentAndWaitlistEntry.has(key)) {
+      latestOfferEventByAppointmentAndWaitlistEntry.set(key, event);
     }
   }
 
@@ -181,7 +195,9 @@ export const getDashboardData = cache(async (businessId: string): Promise<Dashbo
     ...opportunity,
     matchedWaitlistCustomers: opportunity.matchedWaitlistCustomers.map((candidate) => ({
       ...candidate,
-      latestOfferEvent: parseLatestOfferEvent(latestOfferEventByAppointmentAndCustomer.get(`${opportunity.appointmentId}:${candidate.customerId}`)),
+      latestOfferEvent: parseLatestOfferEvent(
+        latestOfferEventByAppointmentAndWaitlistEntry.get(`${opportunity.appointmentId}:${candidate.entryId}`),
+      ),
     })),
   }));
 
