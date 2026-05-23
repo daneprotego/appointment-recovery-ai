@@ -123,7 +123,7 @@ function parseLatestOfferEvent(event: WaitlistOfferEventJoin | undefined) {
   return {
     occurredAt: event.occurred_at,
     dryRun: metadata.dry_run === true,
-    providerMessageSid: typeof metadata.provider_message_sid === 'string' ? metadata.provider_message_sid : null,
+    providerMessageSid: typeof metadata.twilio_message_sid === 'string' ? metadata.twilio_message_sid : null,
     twilioStatus: typeof metadata.twilio_status === 'string' ? metadata.twilio_status : null,
     twilioErrorCode: metadata.twilio_error_code == null ? null : String(metadata.twilio_error_code),
     twilioErrorMessage: typeof metadata.twilio_error_message === 'string' ? metadata.twilio_error_message : null,
