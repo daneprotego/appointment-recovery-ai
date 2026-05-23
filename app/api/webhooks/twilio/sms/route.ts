@@ -148,6 +148,53 @@ async function applyInboundReply(payload: TwilioInboundSmsPayload): Promise<stri
   if (statusUpdate.customerStatus !== undefined) customerUpdate.status = statusUpdate.customerStatus;
   if (Object.keys(customerUpdate).length > 0) await supabase.from('customers').update(customerUpdate).eq('id', match.customer.id).eq('business_id', match.customer.business_id);
 
+  if (match.reminder) {
+    const existingMetadata = isRecord(match.reminder.metadata) ? match.reminder.metadata : {};
+
+    await supabase
+      .from('reminders')
+      .update({
+        status: statusUpdate.reminderStatus ?? match.reminder.status,
+        delivered_at: new Date().toISOString(),
+        metadata: {
+          ...existingMetadata,
+          last_inbound_sms: {
+            from: payload.from,
+            to: payload.to,
+            body: payload.body,
+            normalized_body: parsedReply.normalizedBody,
+            keyword: parsedReply.keyword,
+            intent: parsedReply.intent,
+            message_sid: payload.messageSid,
+            account_sid: payload.accountSid,
+            received_at: new Date().toISOString(),
+          },
+        },
+      })
+      .eq('id', match.reminder.id)
+      .eq('business_id', match.customer.business_id);
+
+    if (statusUpdate.reminderStatus === 'cancelled') {
+      await supabase
+        .from('reminders')
+        .update({ status: 'cancelled' })
+        .eq('appointment_id', match.reminder.appointment_id)
+        .eq('business_id', match.customer.business_id)
+        .eq('channel', 'sms')
+        .eq('status', 'queued');
+    }
+  }
+
+  if (match.appointment && statusUpdate.appointmentStatus) {
+    await transitionAppointmentStatus({
+      appointmentId: match.appointment.id,
+      businessId: match.appointment.business_id,
+      toStatus: statusUpdate.appointmentStatus,
+      reason: statusUpdate.appointmentStatus === 'cancelled' ? 'Cancelled by SMS reply' : undefined,
+      recoveryNotes: appendRecoveryNote(match.appointment.recovery_notes, statusUpdate.recoveryNotes),
+    });
+  }
+
   return getTwilioWebhookResponseMessage(parsedReply.intent);
 }
 
