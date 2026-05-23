@@ -32,8 +32,12 @@ interface WaitlistOfferEventJoin {
 }
 
 function getEventWaitlistEntryId(event: WaitlistOfferEventJoin): string | null {
-  if (!event.metadata || typeof event.metadata !== 'object' || Array.isArray(event.metadata)) return null;
+  if (!event.metadata || typeof event.metadata !== 'object' || Array.isArray(event.metadata)) {
+    return null;
+  }
+
   const value = (event.metadata as Record<string, unknown>).waitlist_entry_id;
+
   return typeof value === 'string' ? value : null;
 }
 
@@ -129,7 +133,7 @@ function parseLatestOfferEvent(event: WaitlistOfferEventJoin | undefined) {
   return {
     occurredAt: event.occurred_at,
     dryRun: metadata.dry_run === true,
-    providerMessageSid: typeof metadata.provider_message_sid === 'string' ? metadata.provider_message_sid : null,
+    providerMessageSid: typeof metadata.twilio_message_sid === 'string' ? metadata.twilio_message_sid : null,
     twilioStatus: typeof metadata.twilio_status === 'string' ? metadata.twilio_status : null,
     twilioErrorCode: metadata.twilio_error_code == null ? null : String(metadata.twilio_error_code),
     twilioErrorMessage: typeof metadata.twilio_error_message === 'string' ? metadata.twilio_error_message : null,
@@ -177,8 +181,10 @@ export const getDashboardData = cache(async (businessId: string): Promise<Dashbo
   const latestOfferEventByAppointmentAndWaitlistEntry = new Map<string, WaitlistOfferEventJoin>();
   for (const event of waitlistOffersResult.data ?? []) {
     if (!event.appointment_id) continue;
+
     const waitlistEntryId = getEventWaitlistEntryId(event);
     if (!waitlistEntryId) continue;
+
     const key = `${event.appointment_id}:${waitlistEntryId}`;
     if (!latestOfferEventByAppointmentAndWaitlistEntry.has(key)) {
       latestOfferEventByAppointmentAndWaitlistEntry.set(key, event);
@@ -189,7 +195,9 @@ export const getDashboardData = cache(async (businessId: string): Promise<Dashbo
     ...opportunity,
     matchedWaitlistCustomers: opportunity.matchedWaitlistCustomers.map((candidate) => ({
       ...candidate,
-      latestOfferEvent: parseLatestOfferEvent(latestOfferEventByAppointmentAndWaitlistEntry.get(`${opportunity.appointmentId}:${candidate.entryId}`)),
+      latestOfferEvent: parseLatestOfferEvent(
+        latestOfferEventByAppointmentAndWaitlistEntry.get(`${opportunity.appointmentId}:${candidate.entryId}`),
+      ),
     })),
   }));
 
