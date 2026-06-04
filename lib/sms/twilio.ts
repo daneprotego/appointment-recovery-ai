@@ -76,16 +76,37 @@ function buildTwilioMessageMetadata(message: MessageInstance): Json {
 }
 
 export async function queueSmsReminder(input: SmsMessageInput): Promise<SmsMessageResult> {
+  console.info('[sms:twilio] queueSmsReminder:start', {
+    to: input.to,
+    hasBody: Boolean(input.body),
+    hasFromOverride: Boolean(input.from),
+    hasStatusCallbackUrl: Boolean(input.statusCallbackUrl),
+  });
+
   const config = getTwilioSendConfig(input);
+  console.info('[sms:twilio] sendSmsReminder:config', {
+    twilioSmsEnabled: config.smsEnabled,
+    hasAccountSid: Boolean(config.accountSid),
+    hasAuthToken: Boolean(config.authToken),
+    hasFrom: Boolean(config.from),
+    to: input.to,
+  });
 
   if (!config.smsEnabled) {
+    console.info('[sms:twilio] sendSmsReminder:twilioSmsEnabledFalse', { to: input.to });
     const reason = 'SMS sending is disabled. Set TWILIO_SMS_ENABLED=true to send real Twilio messages.';
     const metadata = { twilio_sms_enabled: false, dry_run_reason: 'sms_disabled' };
     console.warn('[sms:twilio] Safe SMS dry run because sending is disabled.', { to: input.to, ...metadata });
-    return buildDryRunResult(reason, metadata);
+    const result = buildDryRunResult(reason, metadata);
+    console.info('[sms:twilio] sendSmsReminder:result', result);
+    return result;
   }
 
   const missingConfiguration = getMissingConfiguration(config);
+  console.info('[sms:twilio] sendSmsReminder:missingConfigurationCheck', {
+    to: input.to,
+    missingConfiguration,
+  });
   if (missingConfiguration.length > 0) {
     const reason = `Missing Twilio SMS configuration (${missingConfiguration.join(', ')}). SMS send skipped safely.`;
     const metadata = {
@@ -94,7 +115,9 @@ export async function queueSmsReminder(input: SmsMessageInput): Promise<SmsMessa
       missing_configuration: missingConfiguration,
     };
     console.warn('[sms:twilio] Safe SMS dry run because configuration is incomplete.', { to: input.to, ...metadata });
-    return buildDryRunResult(reason, metadata);
+    const result = buildDryRunResult(reason, metadata);
+    console.info('[sms:twilio] sendSmsReminder:result', result);
+    return result;
   }
 
   try {
@@ -109,14 +132,18 @@ export async function queueSmsReminder(input: SmsMessageInput): Promise<SmsMessa
 
     console.info('[sms:twilio] SMS reminder queued successfully.', metadata);
 
-    return {
-      provider: 'twilio',
+    const result = {
+      provider: 'twilio' as const,
       queued: true,
       dryRun: false,
       providerMessageId: message.sid,
       providerMetadata: metadata,
       errorMessage: message.errorMessage ?? undefined,
     };
+
+    console.info('[sms:twilio] sendSmsReminder:result', result);
+
+    return result;
   } catch (error) {
     const errorMessage = error instanceof Error ? error.message : 'Twilio SMS request failed.';
     const metadata = {
@@ -126,13 +153,17 @@ export async function queueSmsReminder(input: SmsMessageInput): Promise<SmsMessa
     };
     console.error('[sms:twilio] SMS reminder failed.', metadata);
 
-    return {
-      provider: 'twilio',
+    const result = {
+      provider: 'twilio' as const,
       queued: false,
       dryRun: false,
       providerMessageId: null,
       providerMetadata: metadata,
       errorMessage,
     };
+
+    console.info('[sms:twilio] sendSmsReminder:result', result);
+
+    return result;
   }
 }

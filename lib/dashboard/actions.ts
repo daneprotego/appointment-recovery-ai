@@ -313,9 +313,11 @@ export async function deleteRecoveryOpportunityAction(formData: FormData) {
 }
 
 export async function sendRecoveryOfferAction(formData: FormData): Promise<{ ok: boolean; message: string; dryRun: boolean }> {
+  console.info('[recovery] sendRecoveryOfferAction:start');
   const { session, supabase } = await assertSession();
   const waitlistEntryId = getString(formData, 'waitlistEntryId');
   const appointmentId = getString(formData, 'appointmentId');
+  console.info('[recovery] sendRecoveryOfferAction:formData', { appointmentId, waitlistEntryId });
 
   if (!waitlistEntryId || !appointmentId) {
     return { ok: false, message: 'Missing waitlist entry or appointment reference.', dryRun: true };
@@ -335,6 +337,17 @@ export async function sendRecoveryOfferAction(formData: FormData): Promise<{ ok:
       .eq('business_id', session.business.id)
       .maybeSingle<WaitlistEntry & { customers: Pick<Customer, 'id' | 'first_name' | 'phone' | 'sms_opt_in'> | null }>(),
   ]);
+  console.info('[recovery] sendRecoveryOfferAction:loadedEntities', {
+    appointmentFound: Boolean(appointment),
+    appointmentStatus: appointment?.status ?? null,
+    waitlistEntryFound: Boolean(waitlistEntry),
+    waitlistStatus: waitlistEntry?.status ?? null,
+    customerFound: Boolean(waitlistEntry?.customers),
+    customerHasPhone: Boolean(waitlistEntry?.customers?.phone),
+    customerSmsOptIn: waitlistEntry?.customers?.sms_opt_in ?? null,
+    appointmentError: appointmentError?.message ?? null,
+    waitlistError: waitlistError?.message ?? null,
+  });
 
   if (appointmentError || !appointment) {
     return { ok: false, message: `Appointment not found for this business: ${appointmentError?.message ?? appointmentId}`, dryRun: true };
@@ -361,9 +374,23 @@ export async function sendRecoveryOfferAction(formData: FormData): Promise<{ ok:
 
   const metadata = typeof waitlistEntry.metadata === 'object' && waitlistEntry.metadata !== null && !Array.isArray(waitlistEntry.metadata) ? waitlistEntry.metadata as Record<string, unknown> : {};
   const priorOffers = Array.isArray(metadata.offered_for_appointments) ? metadata.offered_for_appointments : [];
-  if (priorOffers.includes(appointment.id)) {
+  const isDuplicateOffer = priorOffers.includes(appointment.id);
+  console.info('[recovery] sendRecoveryOfferAction:duplicateOfferCheck', {
+    isDuplicateOffer,
+    priorOfferCount: priorOffers.length,
+    appointmentId: appointment.id,
+  });
+  if (isDuplicateOffer) {
     return { ok: false, message: 'Offer already sent to this waitlist entry for this appointment.', dryRun: true };
   }
+
+  const twilioSmsEnabled = process.env.TWILIO_SMS_ENABLED?.trim().toLowerCase() === 'true';
+  console.info('[recovery] sendRecoveryOfferAction:twilioConfig', {
+    twilioSmsEnabled,
+    hasTwilioFromNumber: Boolean(process.env.TWILIO_SMS_FROM_NUMBER),
+    hasTwilioAccountSid: Boolean(process.env.TWILIO_ACCOUNT_SID),
+    hasTwilioAuthToken: Boolean(process.env.TWILIO_AUTH_TOKEN),
+  });
 
   const smsResult = await queueSmsReminder({
     to: waitlistEntry.customers.phone,
@@ -373,6 +400,13 @@ export async function sendRecoveryOfferAction(formData: FormData): Promise<{ ok:
   if (!smsResult.queued && !smsResult.dryRun) {
     return { ok: false, message: smsResult.errorMessage ?? 'Unable to queue recovery offer.', dryRun: false };
   }
+  console.info('[recovery] sendRecoveryOfferAction:smsResult', {
+    queued: smsResult.queued,
+    dryRun: smsResult.dryRun,
+    providerMessageId: smsResult.providerMessageId,
+    errorMessage: smsResult.errorMessage ?? null,
+    providerMetadata: smsResult.providerMetadata ?? null,
+  });
 
   const { error: updateError } = await supabase
     .from('waitlists')
@@ -399,35 +433,47 @@ export async function sendRecoveryOfferAction(formData: FormData): Promise<{ ok:
       ? (smsResult.providerMetadata as Record<string, unknown>)
       : {};
 
-  await recordCommunicationEvent({
-    businessId: session.business.id,
-    customerId: waitlistEntry.customer_id,
-    appointmentId: appointment.id,
-    channel: smsResult.dryRun ? 'system' : 'sms',
-    direction: 'outbound',
-    eventType: 'waitlist_offer',
-    body: smsResult.dryRun
-      ? `Dry-run recovery offer prepared for ${appointment.service_name} at ${appointment.starts_at}.`
-      : `Recovery offer sent for ${appointment.service_name} at ${appointment.starts_at}.`,
-    providerMessageId: smsResult.providerMessageId,
-    metadata: {
-      dry_run: smsResult.dryRun,
-      provider: smsResult.provider,
-      provider_message_sid: smsResult.providerMessageId,
-      twilio_status: typeof providerMetadata.twilio_status === 'string' ? providerMetadata.twilio_status : null,
-      twilio_error_code: providerMetadata.twilio_error_code == null ? null : String(providerMetadata.twilio_error_code),
-      twilio_error_message: typeof providerMetadata.twilio_error_message === 'string' ? providerMetadata.twilio_error_message : null,
-      waitlist_entry_id: waitlistEntry.id,
-      provider_metadata: smsResult.providerMetadata ?? {},
-    },
-  });
+  try {
+    await recordCommunicationEvent({
+      businessId: session.business.id,
+      customerId: waitlistEntry.customer_id,
+      appointmentId: appointment.id,
+      channel: smsResult.dryRun ? 'system' : 'sms',
+      direction: 'outbound',
+      eventType: 'waitlist_offer',
+      body: smsResult.dryRun
+        ? `Dry-run recovery offer prepared for ${appointment.service_name} at ${appointment.starts_at}.`
+        : `Recovery offer sent for ${appointment.service_name} at ${appointment.starts_at}.`,
+      providerMessageId: smsResult.providerMessageId,
+      metadata: {
+        dry_run: smsResult.dryRun,
+        provider: smsResult.provider,
+        provider_message_sid: smsResult.providerMessageId,
+        twilio_status: typeof providerMetadata.twilio_status === 'string' ? providerMetadata.twilio_status : null,
+        twilio_error_code: providerMetadata.twilio_error_code == null ? null : String(providerMetadata.twilio_error_code),
+        twilio_error_message: typeof providerMetadata.twilio_error_message === 'string' ? providerMetadata.twilio_error_message : null,
+        waitlist_entry_id: waitlistEntry.id,
+        provider_metadata: smsResult.providerMetadata ?? {},
+      },
+    });
+    console.info('[recovery] sendRecoveryOfferAction:communicationEventInsert', { success: true, eventType: 'waitlist_offer' });
+  } catch (error) {
+    console.error('[recovery] sendRecoveryOfferAction:communicationEventInsert', {
+      success: false,
+      eventType: 'waitlist_offer',
+      errorMessage: error instanceof Error ? error.message : 'Unknown communication event error',
+    });
+    throw error;
+  }
 
   revalidateDashboard();
-  return {
+  const result = {
     ok: true,
     dryRun: smsResult.dryRun,
     message: smsResult.dryRun ? 'Recovery offer dry-run queued (SMS disabled).' : 'Recovery offer sent successfully.',
   };
+  console.info('[recovery] sendRecoveryOfferAction:return', result);
+  return result;
 }
 
 export async function sendAppointmentTestSmsAction(formData: FormData): Promise<{ ok: boolean; message: string }> {
