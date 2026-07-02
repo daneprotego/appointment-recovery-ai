@@ -49,7 +49,7 @@ export default function Home() {
             Appointment Recovery AI helps clinics, salons, studios, and service teams reduce no-shows with automated reminders, AI message triage, rescheduling prompts, and waitlist fill workflows.
           </p>
           <div className="mt-8 flex flex-col gap-3 sm:flex-row">
-            <Link href="/pricing" className="rounded-full bg-blue-600 px-6 py-3 text-center text-sm font-semibold text-white shadow-lg shadow-blue-600/20 transition hover:bg-blue-700">
+            <Link href="/pricing" className="inline-flex items-center justify-center rounded-full border border-slate-300 bg-white px-6 py-3 text-center text-sm font-bold text-slate-950 shadow-sm transition hover:border-blue-300 hover:bg-blue-50 hover:text-blue-700">
               View pricing
             </Link>
             <Link href="/signup" className="rounded-full border border-slate-300 bg-white px-6 py-3 text-center text-sm font-semibold text-slate-900 transition hover:border-slate-400">
