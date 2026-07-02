@@ -28,9 +28,12 @@ export default function Home() {
           <Link href="/signup" className="hover:text-slate-950">Sign up</Link>
           <Link href="/dashboard" className="hover:text-slate-950">Dashboard</Link>
         </nav>
-        <Link href="/dashboard" className="rounded-full bg-slate-950 px-5 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:bg-slate-800">
-          Open dashboard
-        </Link>
+      <Link
+        href="/dashboard"
+        className="inline-flex items-center justify-center rounded-full border border-slate-300 bg-white px-5 py-2.5 text-sm font-bold text-slate-950 shadow-sm transition hover:border-blue-300 hover:bg-blue-50 hover:text-blue-700"
+      >
+        Open dashboard
+      </Link>
       </header>
 
       <section className="relative mx-auto grid max-w-7xl gap-12 px-6 py-16 lg:grid-cols-[1fr_0.9fr] lg:px-8 lg:py-24">
