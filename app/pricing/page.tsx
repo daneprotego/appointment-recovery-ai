@@ -128,14 +128,14 @@ export default function PricingPage() {
               {plan.highlighted ? (
                 <Link
                   href="/signup"
-                  className="mt-8 block rounded-full border border-white bg-white px-5 py-3 text-center text-sm font-bold text-slate-950 shadow-sm transition hover:bg-blue-50 hover:text-blue-700"
+                  className="mt-8 block rounded-full border border-white bg-white px-5 py-3 text-center text-sm font-bold !text-slate-950 shadow-sm transition hover:bg-blue-50 hover:!text-blue-700"
                 >
                   Start with Growth
                 </Link>
               ) : (
                 <Link
                   href="/signup"
-                  className="mt-8 block rounded-full border border-slate-300 bg-white px-5 py-3 text-center text-sm font-bold text-slate-950 shadow-sm transition hover:border-blue-300 hover:bg-blue-50 hover:text-blue-700"
+                  className="mt-8 block rounded-full border border-white bg-white px-5 py-3 text-center text-sm font-bold !text-slate-950 shadow-sm transition hover:bg-blue-50 hover:!text-blue-700"
                 >
                   Start with {plan.name}
                 </Link>
