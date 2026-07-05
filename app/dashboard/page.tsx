@@ -42,7 +42,7 @@ export default async function DashboardPage() {
             <h2 className="mt-3 text-3xl font-bold tracking-tight md:text-4xl">Your production dashboard is ready for recovery workflows.</h2>
             <p className="mt-3 max-w-2xl text-slate-300">Manage appointments, customers, waitlists, and recovery opportunities with seeded demo data while production integrations stay behind safe environment variables.</p>
           </div>
-          <Link href="/dashboard/recovery" className="rounded-full bg-white px-5 py-3 text-center text-sm font-semibold text-slate-950">Open pipeline</Link>
+          <Link href="/dashboard/recovery" className="inline-flex items-center justify-center rounded-full border border-slate-300 bg-white px-5 py-3 text-sm font-bold shadow-sm transition hover:border-blue-300 hover:bg-blue-50" style={{ color: "#0f172a" }}>Open pipeline</Link>
         </div>
       </section>
 
