@@ -1,7 +1,17 @@
-import { NextResponse } from "next/server";
+import { NextResponse, type NextRequest } from "next/server";
 import Stripe from "stripe";
 
-const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!);
+import { requireApiAuth } from "@/lib/auth/api";
+
+function getStripeClient() {
+  const secretKey = process.env.STRIPE_SECRET_KEY;
+
+  if (!secretKey) {
+    throw new Error("Missing STRIPE_SECRET_KEY environment variable.");
+  }
+
+  return new Stripe(secretKey);
+}
 
 const priceMap = {
   starter: process.env.STRIPE_STARTER_PRICE_ID,
@@ -9,7 +19,7 @@ const priceMap = {
   pro: process.env.STRIPE_PRO_PRICE_ID,
 };
 
-export async function POST(request: Request) {
+export async function POST(request: NextRequest) {
   const { plan } = await request.json();
 
   const priceId = priceMap[plan as keyof typeof priceMap];
@@ -26,7 +36,10 @@ export async function POST(request: Request) {
     process.env.PUBLIC_APP_URL ||
     "http://localhost:3000";
 
-  const session = await stripe.checkout.sessions.create({
+  const auth = await requireApiAuth(request);
+  const businessId = auth.ok ? auth.context.businessId : undefined;
+
+  const session = await getStripeClient().checkout.sessions.create({
     mode: "subscription",
     payment_method_types: ["card"],
     line_items: [
@@ -35,6 +48,16 @@ export async function POST(request: Request) {
         quantity: 1,
       },
     ],
+    client_reference_id: businessId,
+    metadata: businessId ? { business_id: businessId, plan } : { plan },
+    subscription_data: businessId
+      ? {
+          metadata: {
+            business_id: businessId,
+            plan,
+          },
+        }
+      : undefined,
     success_url: `${appUrl}/dashboard/settings?checkout=success`,
     cancel_url: `${appUrl}/pricing?checkout=cancelled`,
   });
