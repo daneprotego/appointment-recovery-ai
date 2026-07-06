@@ -140,6 +140,8 @@ create table public.subscriptions (
   status public.subscription_status not null default 'trialing',
   stripe_customer_id text,
   stripe_subscription_id text unique,
+  stripe_price_id text,
+  plan_name text,
   current_period_start timestamptz,
   current_period_end timestamptz,
   cancel_at_period_end boolean not null default false,
