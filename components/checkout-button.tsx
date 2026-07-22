@@ -1,7 +1,7 @@
 "use client";
 
 type CheckoutButtonProps = {
-  plan: "starter" | "growth" | "pro";
+  plan: "professional" | "premium";
   children: React.ReactNode;
   className?: string;
 };

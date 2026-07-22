@@ -5,7 +5,7 @@ A clean MVP for a low-cost SaaS that helps appointment-based businesses reduce m
 ## MVP screens
 
 - Landing page with value proposition and feature summary
-- Pricing page with Free, Starter, Growth, and Pro plans
+- Pricing page with Free, Professional, and Premium plans
 - Dashboard shell with recovery metrics and activity
 - Appointment recovery queue table
 - Customer recovery profile table
@@ -56,9 +56,8 @@ Configure these in Vercel under **Project Settings > Environment Variables** for
 | `NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY` | Optional | `replace-me-stripe-publishable-key` | Required only when Stripe checkout is connected. |
 | `STRIPE_SECRET_KEY` | Optional | `replace-me-stripe-secret-key` | Server-only Stripe API key. |
 | `STRIPE_WEBHOOK_SECRET` | Optional | `replace-me-stripe-webhook-secret` | Stripe webhook signing secret. |
-| `STRIPE_STARTER_PRICE_ID` | Optional | `replace-me-starter-price-id` | Stripe Price ID for the Starter plan. |
-| `STRIPE_GROWTH_PRICE_ID` | Optional | `replace-me-growth-price-id` | Stripe Price ID for the Growth plan. |
-| `STRIPE_PRO_PRICE_ID` | Optional | `replace-me-pro-price-id` | Stripe Price ID for the Pro plan. |
+| `STRIPE_PROFESSIONAL_PRICE_ID` | Optional | `replace-me-professional-price-id` | Stripe Price ID for the Professional plan ($15/month). |
+| `STRIPE_PREMIUM_PRICE_ID` | Optional | `replace-me-premium-price-id` | Stripe Price ID for the Premium plan ($30/month). |
 | `GOOGLE_CALENDAR_CLIENT_ID` | Optional | `replace-me-google-calendar-client-id` | Required only when Google Calendar integration is enabled. |
 | `GOOGLE_CALENDAR_CLIENT_SECRET` | Optional | `replace-me-google-calendar-client-secret` | Server-only Google OAuth secret. |
 | `MICROSOFT_CALENDAR_CLIENT_ID` | Optional | `replace-me-microsoft-calendar-client-id` | Required only when Microsoft Calendar integration is enabled. |
@@ -84,6 +83,8 @@ The migration files are ordered by timestamp and should be applied in order:
 
 1. `supabase/migrations/20260514000000_initial_schema.sql`
 2. `supabase/migrations/20260514010000_recovery_workflow.sql`
+3. `supabase/migrations/20260705000000_add_stripe_subscription_fields.sql`
+4. `supabase/migrations/20260722000000_update_subscription_plans.sql
 
 Recommended Supabase CLI flow:
 

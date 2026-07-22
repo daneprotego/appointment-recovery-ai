@@ -25,9 +25,8 @@ const stripeStatusToSubscriptionStatus: Partial<Record<Stripe.Subscription.Statu
 };
 
 function getPlanForPrice(priceId: string | null | undefined): SubscriptionPlan {
-  if (priceId === process.env.STRIPE_STARTER_PRICE_ID) return 'starter';
-  if (priceId === process.env.STRIPE_GROWTH_PRICE_ID) return 'growth';
-  if (priceId === process.env.STRIPE_PRO_PRICE_ID) return 'pro';
+  if (priceId === process.env.STRIPE_PROFESSIONAL_PRICE_ID) return 'professional';
+  if (priceId === process.env.STRIPE_PREMIUM_PRICE_ID) return 'premium';
   return 'free';
 }
 
