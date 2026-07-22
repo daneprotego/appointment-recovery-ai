@@ -14,9 +14,8 @@ function getStripeClient() {
 }
 
 const priceMap = {
-  starter: process.env.STRIPE_STARTER_PRICE_ID,
-  growth: process.env.STRIPE_GROWTH_PRICE_ID,
-  pro: process.env.STRIPE_PRO_PRICE_ID,
+  professional: process.env.STRIPE_PROFESSIONAL_PRICE_ID,
+  premium: process.env.STRIPE_PREMIUM_PRICE_ID,
 };
 
 export async function POST(request: NextRequest) {

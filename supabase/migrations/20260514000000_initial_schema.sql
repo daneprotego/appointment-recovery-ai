@@ -11,7 +11,7 @@ create type public.appointment_risk_level as enum ('low', 'medium', 'high', 'rec
 create type public.reminder_channel as enum ('sms', 'email', 'voice');
 create type public.reminder_status as enum ('queued', 'processing', 'sent', 'delivered', 'failed', 'cancelled');
 create type public.waitlist_status as enum ('open', 'matched', 'notified', 'booked', 'expired', 'cancelled');
-create type public.subscription_plan as enum ('free', 'starter', 'growth', 'pro');
+create type public.subscription_plan as enum ('free', 'professional', 'premium');
 create type public.subscription_status as enum ('trialing', 'active', 'past_due', 'cancelled', 'unpaid');
 create type public.communication_direction as enum ('inbound', 'outbound', 'internal');
 create type public.communication_event_type as enum ('reminder_scheduled', 'reminder_sent', 'reminder_delivered', 'reply_received', 'reply_classified', 'status_change', 'waitlist_offer', 'recovery_note');

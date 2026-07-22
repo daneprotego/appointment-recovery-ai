@@ -22,9 +22,8 @@ Recover lost appointment revenue automatically.
 
 ## Pricing
 - Free: $0
-- Starter: $19/mo
-- Growth: $39/mo
-- Pro: $79/mo
+- Professional: $15/mo
+- Premium: $30/mo
 
 ## Stack
 - Next.js

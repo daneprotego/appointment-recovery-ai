@@ -16,8 +16,8 @@ const integrationGroups = [
   },
   {
     name: "Stripe",
-    description: "Power Free, Starter, Growth, and Pro billing plans.",
-    variables: ["NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY", "STRIPE_SECRET_KEY", "STRIPE_WEBHOOK_SECRET", "STRIPE_STARTER_PRICE_ID", "STRIPE_GROWTH_PRICE_ID", "STRIPE_PRO_PRICE_ID"],
+    description: "Power Free, Professional, and Premium billing plans.",
+    variables: ["NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY", "STRIPE_SECRET_KEY", "STRIPE_WEBHOOK_SECRET", "STRIPE_PROFESSIONAL_PRICE_ID", "STRIPE_PREMIUM_PRICE_ID"],
   },
   {
     name: "Calendar integrations",
