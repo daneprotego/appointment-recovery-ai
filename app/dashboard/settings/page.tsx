@@ -1,62 +1,100 @@
-const integrationGroups = [
-  {
-    name: "Supabase",
-    description: "Store businesses, users, owner/admin/staff roles, appointments, customers, messages, waitlist records, and Supabase Auth sessions.",
-    variables: ["NEXT_PUBLIC_SUPABASE_URL", "NEXT_PUBLIC_SUPABASE_ANON_KEY", "SUPABASE_SERVICE_ROLE_KEY"],
-  },
-  {
-    name: "Twilio",
-    description: "Send SMS reminders and receive webhook replies for AI classification.",
-    variables: ["TWILIO_ACCOUNT_SID", "TWILIO_AUTH_TOKEN", "TWILIO_SMS_FROM_NUMBER", "TWILIO_SMS_ENABLED"],
-  },
-  {
-    name: "OpenAI",
-    description: "Classify SMS replies into confirm, cancel, reschedule, and human-help intents.",
-    variables: ["OPENAI_API_KEY"],
-  },
-  {
-    name: "Stripe",
-    description: "Power Free, Professional, and Premium billing plans.",
-    variables: ["NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY", "STRIPE_SECRET_KEY", "STRIPE_WEBHOOK_SECRET", "STRIPE_PROFESSIONAL_PRICE_ID", "STRIPE_PREMIUM_PRICE_ID"],
-  },
-  {
-    name: "Calendar integrations",
-    description: "Connect Google Calendar and Microsoft Calendar when scheduling sync is ready.",
-    variables: ["GOOGLE_CALENDAR_CLIENT_ID", "GOOGLE_CALENDAR_CLIENT_SECRET", "MICROSOFT_CALENDAR_CLIENT_ID", "MICROSOFT_CALENDAR_CLIENT_SECRET"],
-  },
-];
+import Link from 'next/link';
 
-export default function SettingsPage() {
+import { requireOnboardedSession } from '@/lib/auth/session';
+import { createReadOnlySupabaseServerClient } from '@/lib/supabase/server';
+import type { Subscription, SubscriptionPlan, SubscriptionStatus } from '@/lib/types/database';
+
+export const dynamic = 'force-dynamic';
+
+const planLabels: Record<SubscriptionPlan, string> = {
+  free: 'Free',
+  professional: 'Professional',
+  premium: 'Premium',
+};
+
+const statusLabels: Record<SubscriptionStatus, string> = {
+  active: 'Active',
+  trialing: 'Trialing',
+  past_due: 'Past Due',
+  cancelled: 'Canceled',
+  unpaid: 'Past Due',
+};
+
+function formatRenewalDate(date: string | null) {
+  if (!date) {
+    return 'Not available';
+  }
+
+  return new Intl.DateTimeFormat('en-US', {
+    dateStyle: 'long',
+    timeZone: 'UTC',
+  }).format(new Date(date));
+}
+
+export default async function SettingsPage() {
+  const session = await requireOnboardedSession();
+  const supabase = await createReadOnlySupabaseServerClient();
+  const { data } = await supabase
+    .from('subscriptions')
+    .select('*')
+    .eq('business_id', session.business.id)
+    .maybeSingle<Subscription>();
+
+  const subscription = data ?? null;
+  const plan = subscription ? planLabels[subscription.plan] : 'Free';
+
   return (
     <div className="space-y-6">
       <div>
         <p className="text-sm font-semibold uppercase tracking-[0.2em] text-blue-600">Settings</p>
-        <h2 className="mt-2 text-3xl font-bold tracking-tight">Integration placeholders</h2>
-        <p className="mt-2 max-w-3xl text-slate-600">
-          This MVP intentionally uses environment variable placeholders only. Add real secrets in your deployment provider or local <code className="rounded bg-slate-200 px-1.5 py-0.5">.env.local</code>, never in source control.
-        </p>
+        <h2 className="mt-2 text-3xl font-bold tracking-tight">Subscription</h2>
+        <p className="mt-2 max-w-3xl text-slate-600">Review your current plan and billing details.</p>
       </div>
 
-      <section className="grid gap-5 xl:grid-cols-2">
-        {integrationGroups.map((group) => (
-          <article key={group.name} className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
-            <div className="flex items-start justify-between gap-4">
-              <div>
-                <h3 className="text-xl font-semibold">{group.name}</h3>
-                <p className="mt-2 text-sm leading-6 text-slate-600">{group.description}</p>
-              </div>
-              <span className="rounded-full bg-amber-50 px-3 py-1 text-xs font-semibold text-amber-700">Not connected</span>
-            </div>
-            <div className="mt-5 space-y-3">
-              {group.variables.map((variable) => (
-                <label key={variable} className="block">
-                  <span className="text-xs font-semibold uppercase tracking-wider text-slate-500">{variable}</span>
-                  <input readOnly value={`process.env.${variable}`} className="mt-1 w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 font-mono text-sm text-slate-600 outline-none" />
-                </label>
-              ))}
-            </div>
-          </article>
-        ))}
+      <section className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
+        <div className="flex flex-col gap-5 sm:flex-row sm:items-start sm:justify-between">
+          <div>
+            <p className="text-sm font-medium text-slate-500">Current Plan</p>
+            <h3 className="mt-1 text-2xl font-bold">{subscription ? plan : 'Free Plan'}</h3>
+          </div>
+          <div className="flex flex-wrap gap-3">
+            <Link
+              href="/pricing"
+              className="inline-flex items-center justify-center rounded-full bg-blue-600 px-5 py-3 text-sm font-bold text-white transition hover:bg-blue-700"
+            >
+              Upgrade
+            </Link>
+            <button
+              type="button"
+              disabled
+              title="Customer Portal coming soon."
+              className="cursor-not-allowed rounded-full border border-slate-200 bg-slate-100 px-5 py-3 text-sm font-bold text-slate-400"
+            >
+              Manage Billing
+            </button>
+          </div>
+        </div>
+
+        <dl className="mt-8 grid gap-5 border-t border-slate-100 pt-6 sm:grid-cols-2">
+          <div>
+            <dt className="text-sm font-medium text-slate-500">Status</dt>
+            <dd className="mt-1 font-semibold text-slate-950">{subscription ? statusLabels[subscription.status] : 'Active'}</dd>
+          </div>
+          <div>
+            <dt className="text-sm font-medium text-slate-500">Renewal date</dt>
+            <dd className="mt-1 font-semibold text-slate-950">{formatRenewalDate(subscription?.current_period_end ?? null)}</dd>
+          </div>
+          <div>
+            <dt className="text-sm font-medium text-slate-500">Stripe Customer ID</dt>
+            <dd className="mt-1 break-all font-mono text-sm text-slate-950">{subscription?.stripe_customer_id ?? 'Not available'}</dd>
+          </div>
+          <div>
+            <dt className="text-sm font-medium text-slate-500">Stripe Subscription ID</dt>
+            <dd className="mt-1 break-all font-mono text-sm text-slate-950">{subscription?.stripe_subscription_id ?? 'Not available'}</dd>
+          </div>
+        </dl>
+
+        <p className="mt-6 text-sm text-slate-500">Customer Portal coming soon.</p>
       </section>
     </div>
   );
