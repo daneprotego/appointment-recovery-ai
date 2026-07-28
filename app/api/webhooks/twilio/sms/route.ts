@@ -1,7 +1,7 @@
 import { createHmac, timingSafeEqual } from 'crypto';
 import { NextResponse, type NextRequest } from 'next/server';
 
-import { classifyMessagePlaceholder } from '@/lib/ai/message-classification';
+import { classifySmsMessage, shouldApplyAiWorkflowAction } from '@/lib/ai/sms-classification';
 import { getSupabaseAdminClient } from '@/lib/supabase/admin';
 import { getReplyStatusUpdate, getTwilioWebhookResponseMessage, parseSmsReply } from '@/lib/sms/replies';
 import type { Appointment, CommunicationEvent, Customer, Json, RecoveryOpportunity, Reminder, WaitlistEntry } from '@/lib/types/database';
@@ -11,7 +11,7 @@ import { recordCommunicationEvent } from '@/lib/workflows/communications';
 
 export const runtime = 'nodejs';
 
-type WaitlistReplyIntent = 'claim' | 'cancel' | 'reschedule' | 'stop' | 'help' | 'default';
+type WaitlistReplyIntent = 'claim' | 'cancel' | 'reschedule' | 'stop' | 'start' | 'help' | 'decline' | 'default';
 
 interface TwilioInboundSmsPayload {
   from: string;
@@ -42,11 +42,13 @@ function isValidTwilioSignature(request: NextRequest, rawBody: string, authToken
 
 function getWaitlistReplyIntent(body: string): WaitlistReplyIntent {
   const normalized = body.trim().toUpperCase();
-  if (['YES', 'CONFIRM', 'CLAIM'].includes(normalized)) return 'claim';
+  if (['YES', 'Y', 'CONFIRM', 'CONFIRMED', 'CLAIM'].includes(normalized)) return 'claim';
   if (normalized === 'CANCEL') return 'cancel';
   if (normalized === 'RESCHEDULE') return 'reschedule';
-  if (normalized === 'STOP') return 'stop';
-  if (normalized === 'HELP') return 'help';
+  if (['STOP', 'STOPALL', 'UNSUBSCRIBE', 'CANCELALL', 'END', 'QUIT'].includes(normalized)) return 'stop';
+  if (['START', 'UNSTOP'].includes(normalized)) return 'start';
+  if (['HELP', 'INFO'].includes(normalized)) return 'help';
+  if (['NO', 'N', 'DECLINE'].includes(normalized)) return 'decline';
   return 'default';
 }
 
@@ -133,15 +135,29 @@ async function applyInboundReply(payload: TwilioInboundSmsPayload): Promise<stri
     await recordCommunicationEvent({ businessId: match.customer.business_id, customerId: match.customer.id, appointmentId: match.appointment?.id ?? null, reminderId: match.reminder?.id ?? null, channel: 'sms', direction: 'inbound', eventType: 'status_change', body: 'Customer opted out via STOP reply.', providerMessageId: payload.messageSid, metadata: { from: payload.from, to: payload.to, opt_out: true } });
     return 'You are opted out and will no longer receive SMS messages. Reply START to re-subscribe.';
   }
+  if (intent === 'start') {
+    await supabase.from('customers').update({ sms_opt_in: true, status: 'active' }).eq('id', match.customer.id).eq('business_id', match.customer.business_id);
+    await recordCommunicationEvent({ businessId: match.customer.business_id, customerId: match.customer.id, appointmentId: match.appointment?.id ?? null, reminderId: match.reminder?.id ?? null, channel: 'sms', direction: 'inbound', eventType: 'status_change', body: 'Customer opted in via SMS command.', providerMessageId: payload.messageSid, metadata: { from: payload.from, to: payload.to, opt_in: true } });
+    return 'You are re-subscribed to SMS appointment messages.';
+  }
   if (intent === 'help') return 'Need help? Reply with your question or contact support at support@example.com.';
+  if (intent === 'decline') return 'Thanks. We have noted your response and staff will follow up if needed.';
 
   // preserve existing behavior for non-keyword replies
   const parsedReply = parseSmsReply(payload.body);
-  const statusUpdate = getReplyStatusUpdate(parsedReply);
-  const classification = classifyMessagePlaceholder(payload.body);
+  const { data: business } = await supabase.from('businesses').select('name, timezone').eq('id', match.customer.business_id).maybeSingle<{ name: string; timezone: string }>();
+  const classification = await classifySmsMessage(payload.body, { context: {
+    businessName: business?.name, businessTimezone: business?.timezone, customerFirstName: match.customer.first_name,
+    appointmentServiceName: match.appointment?.service_name, appointmentStartsAt: match.appointment?.starts_at,
+    appointmentStatus: match.appointment?.status, priorOutboundReminderText: match.reminder?.message_body,
+  } });
+  const safeAiAction = shouldApplyAiWorkflowAction(classification);
+  const statusUpdate = safeAiAction
+    ? getReplyStatusUpdate({ intent: classification.intent as 'cancel' | 'reschedule', normalizedBody: parsedReply.normalizedBody, keyword: null })
+    : getReplyStatusUpdate({ intent: 'unknown', normalizedBody: parsedReply.normalizedBody, keyword: null });
 
   await recordCommunicationEvent({ businessId: match.customer.business_id, customerId: match.customer.id, appointmentId: match.appointment?.id ?? null, reminderId: match.reminder?.id ?? null, channel: 'sms', direction: 'inbound', eventType: 'reply_received', body: payload.body, providerMessageId: payload.messageSid, metadata: { from: payload.from, to: payload.to, parsed_intent: parsedReply.intent } });
-  await recordCommunicationEvent({ businessId: match.customer.business_id, customerId: match.customer.id, appointmentId: match.appointment?.id ?? null, reminderId: match.reminder?.id ?? null, channel: 'system', direction: 'internal', eventType: 'reply_classified', body: classification.summary, metadata: { ...classification, source: 'placeholder_keyword_classifier' } });
+  await recordCommunicationEvent({ businessId: match.customer.business_id, customerId: match.customer.id, appointmentId: match.appointment?.id ?? null, reminderId: match.reminder?.id ?? null, channel: 'system', direction: 'internal', eventType: 'reply_classified', body: classification.summary, metadata: { intent: classification.intent, confidence: classification.confidence, needs_human_review: classification.needsHumanReview, entities: classification.entities, source: classification.source, model: classification.model, classified_at: classification.classifiedAt, suggested_reply: classification.suggestedReply, action_applied: safeAiAction } });
 
   const customerUpdate: Partial<Pick<Customer, 'sms_opt_in' | 'status'>> = {};
   if (statusUpdate.customerSmsOptIn !== undefined) customerUpdate.sms_opt_in = statusUpdate.customerSmsOptIn;

@@ -53,6 +53,7 @@ Configure these in Vercel under **Project Settings > Environment Variables** for
 | `TWILIO_SMS_ENABLED` | Optional | `false` | Set to `true` only after Twilio credentials, sender registration, and compliance are ready. |
 | `TWILIO_VALIDATE_WEBHOOK_SIGNATURES` | Optional | `false` | Set to `true` in production when Twilio webhooks are configured. |
 | `OPENAI_API_KEY` | Optional | `replace-me-openai-api-key` | Required only for AI-powered message classification or generation. |
+| `OPENAI_SMS_CLASSIFICATION_MODEL` | Optional | `gpt-4.1-mini` | Structured SMS classification model; defaults to `gpt-4.1-mini`. |
 | `NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY` | Optional | `replace-me-stripe-publishable-key` | Required only when Stripe checkout is connected. |
 | `STRIPE_SECRET_KEY` | Optional | `replace-me-stripe-secret-key` | Server-only Stripe API key. |
 | `STRIPE_WEBHOOK_SECRET` | Optional | `replace-me-stripe-webhook-secret` | Stripe webhook signing secret. |
@@ -64,6 +65,8 @@ Configure these in Vercel under **Project Settings > Environment Variables** for
 | `MICROSOFT_CALENDAR_CLIENT_SECRET` | Optional | `replace-me-microsoft-calendar-client-secret` | Server-only Microsoft OAuth secret. |
 
 Production startup validation checks these required values: `NEXT_PUBLIC_APP_URL`, `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY`, `SUPABASE_SERVICE_ROLE_KEY`, and `REMINDER_JOB_SECRET`. Missing values or known placeholders fail startup and return a failing `/api/health` response.
+
+Inbound SMS compliance and exact commands are always classified locally. When `OPENAI_API_KEY` is missing—or OpenAI times out, is unavailable, or returns invalid structured output—natural-language messages receive a safe `unknown` classification marked for staff review, and the Twilio webhook continues without failing. AI suggestions are stored in `reply_classified` communication-event metadata and are never sent automatically.
 
 ## Supabase setup
 
