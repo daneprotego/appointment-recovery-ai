@@ -1,0 +1,35 @@
+name: Deploy Financial Detective to GitHub Pages
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'financial-detective/**'
+      - '.github/workflows/financial-detective-pages.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+concurrency:
+  group: financial-detective-pages
+  cancel-in-progress: true
+jobs:
+  deploy:
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Prepare Pages site
+        run: |
+          mkdir -p _site/financial-detective
+          cp financial-detective/index.html _site/financial-detective/index.html
+          printf '<meta http-equiv="refresh" content="0; url=financial-detective/">\n' > _site/index.html
+      - uses: actions/configure-pages@v5
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: _site
+      - name: Deploy
+        id: deployment
+        uses: actions/deploy-pages@v4
